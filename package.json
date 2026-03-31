@@ -1,0 +1,42 @@
+{
+  "name": "whattheshell",
+  "version": "0.1.0",
+  "description": "AI-powered shell command generator and explainer",
+  "main": "dist/index.js",
+  "bin": {
+    "wts": "dist/index.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "cli",
+    "shell",
+    "ai",
+    "command",
+    "generator",
+    "explainer"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@iarna/toml": "^2.2.5",
+    "chalk": "^5.6.2",
+    "clipboardy": "^5.3.1",
+    "commander": "^14.0.3",
+    "openai": "^6.33.0",
+    "ora": "^9.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.2"
+  }
+}

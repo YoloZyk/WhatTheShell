@@ -1,0 +1,159 @@
+import type { WtsConfig, AIProvider, Language, ShellType } from '../types';
+import * as path from 'path';
+import * as fs from 'fs';
+import { parse, stringify } from '@iarna/toml';
+
+const WTS_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '~', '.wts');
+const CONFIG_PATH = path.join(WTS_DIR, 'config.toml');
+
+/** 默认配置 */
+export const DEFAULT_CONFIG: WtsConfig = {
+  api_key: '',
+  provider: 'openai',
+  base_url: '',
+  model: 'gpt-4o',
+  language: 'zh',
+  shell: 'bash',
+  history_limit: 100,
+};
+
+/** 合法配置键 */
+const VALID_KEYS = new Set<string>(Object.keys(DEFAULT_CONFIG));
+
+/** 配置项校验规则 */
+const VALIDATORS: Record<string, (v: string) => boolean> = {
+  provider: (v) => ['openai', 'anthropic'].includes(v),
+  base_url: (v) => v === '' || /^https?:\/\//.test(v),
+  language: (v) => ['zh', 'en'].includes(v),
+  shell: (v) => ['bash', 'zsh', 'powershell', 'fish'].includes(v),
+  history_limit: (v) => /^\d+$/.test(v) && parseInt(v) > 0,
+};
+
+/** 确保 ~/.wts 目录存在 */
+export function ensureConfigDir(): void {
+  if (!fs.existsSync(WTS_DIR)) {
+    fs.mkdirSync(WTS_DIR, { recursive: true });
+  }
+}
+
+/** 获取配置目录路径 */
+export function getConfigDir(): string {
+  return WTS_DIR;
+}
+
+/** 读取配置 */
+export function loadConfig(): WtsConfig {
+  if (!fs.existsSync(CONFIG_PATH)) {
+    return { ...DEFAULT_CONFIG };
+  }
+
+  try {
+    const content = fs.readFileSync(CONFIG_PATH, 'utf-8');
+    const parsed = parse(content);
+    return { ...DEFAULT_CONFIG, ...parsed } as unknown as WtsConfig;
+  } catch {
+    console.error(`  配置文件解析失败，使用默认配置`);
+    return { ...DEFAULT_CONFIG };
+  }
+}
+
+/** 写入完整配置到文件 */
+export function saveConfig(config: WtsConfig): void {
+  ensureConfigDir();
+  const tomlContent = stringify(config as unknown as Record<string, any>);
+  fs.writeFileSync(CONFIG_PATH, tomlContent, 'utf-8');
+}
+
+/** 获取单个配置项 */
+export function getConfigValue(key: keyof WtsConfig): string {
+  const config = loadConfig();
+  return String(config[key]);
+}
+
+/** 设置单个配置项 */
+export function setConfigValue(key: string, value: string): void {
+  if (!VALID_KEYS.has(key)) {
+    console.error(`  无效的配置项: ${key}`);
+    console.error(`  可用配置项: ${[...VALID_KEYS].join(', ')}`);
+    return;
+  }
+
+  const validator = VALIDATORS[key];
+  if (validator && !validator(value)) {
+    const hints: Record<string, string> = {
+      provider: 'openai, anthropic',
+      base_url: 'HTTP/HTTPS URL (留空使用默认端点)',
+      language: 'zh, en',
+      shell: 'bash, zsh, powershell, fish',
+      history_limit: '正整数',
+    };
+    console.error(`  无效的值: ${value}`);
+    console.error(`  ${key} 的可选值: ${hints[key]}`);
+    return;
+  }
+
+  const config = loadConfig();
+  if (key === 'history_limit') {
+    (config as any)[key] = parseInt(value);
+  } else {
+    (config as any)[key] = value;
+  }
+  saveConfig(config);
+  console.log(`  ✓ ${key} = ${key === 'api_key' ? maskValue(value) : value}`);
+}
+
+/** 列出所有配置 */
+export function listConfig(): void {
+  const config = loadConfig();
+  const fromFile = fs.existsSync(CONFIG_PATH);
+  console.log(`  配置文件: ${CONFIG_PATH}${fromFile ? '' : ' (未创建，使用默认值)'}\n`);
+  for (const [key, value] of Object.entries(config)) {
+    const display = key === 'api_key' ? maskValue(String(value)) : value;
+    console.log(`  ${key} = ${display}`);
+  }
+}
+
+/** 脱敏显示 */
+function maskValue(value: string): string {
+  if (!value) return '(未设置)';
+  if (value.length <= 8) return '****';
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+/** 提供商预设 */
+export interface ProviderPreset {
+  provider: AIProvider;
+  base_url: string;
+  model: string;
+  label: string;
+}
+
+export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
+  openai:    { provider: 'openai',    base_url: '',                                                    model: 'gpt-4o',                     label: 'OpenAI' },
+  anthropic: { provider: 'anthropic', base_url: '',                                                    model: 'claude-sonnet-4-20250514',   label: 'Anthropic Claude' },
+  qwen:      { provider: 'openai',    base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',   model: 'qwen-plus',                  label: '通义千问 (Qwen)' },
+  deepseek:  { provider: 'openai',    base_url: 'https://api.deepseek.com/v1',                         model: 'deepseek-chat',              label: 'DeepSeek' },
+  kimi:      { provider: 'openai',    base_url: 'https://api.moonshot.cn/v1',                          model: 'moonshot-v1-8k',             label: 'Moonshot KIMI' },
+};
+
+/** 应用提供商预设 */
+export function applyPreset(name: string): boolean {
+  const preset = PROVIDER_PRESETS[name.toLowerCase()];
+  if (!preset) {
+    console.error(`  未知的提供商: ${name}`);
+    console.error(`  可用预设: ${Object.keys(PROVIDER_PRESETS).join(', ')}`);
+    return false;
+  }
+
+  const config = loadConfig();
+  config.provider = preset.provider;
+  config.base_url = preset.base_url;
+  config.model = preset.model;
+  saveConfig(config);
+
+  console.log(`  ✓ 已切换到 ${preset.label}`);
+  console.log(`    provider = ${preset.provider}`);
+  console.log(`    base_url = ${preset.base_url || '(默认)'}`);
+  console.log(`    model    = ${preset.model}`);
+  return true;
+}

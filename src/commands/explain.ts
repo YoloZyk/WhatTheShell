@@ -1,0 +1,42 @@
+import type { ExplainOptions, DetailLevel } from '../types';
+import { AIClient } from '../core/ai';
+import { checkDanger } from '../core/danger';
+import { loadConfig } from '../utils/config';
+import { addHistory } from '../utils/history';
+import { displayExplanation, displayError, startSpinner } from '../utils/display';
+
+export async function explainCommand(command: string, options: ExplainOptions): Promise<void> {
+  const config = loadConfig();
+
+  if (!config.api_key) {
+    await displayError('API Key 未设置，请先运行: wts config set api_key <your-key>');
+    return;
+  }
+
+  const level: DetailLevel = options.brief ? 'brief' : options.detail ? 'detail' : 'normal';
+  const client = new AIClient(config.provider, config.api_key, config.model, config.base_url);
+
+  const spinner = await startSpinner('正在解析命令...');
+
+  try {
+    const result = await client.explain(command, level, config.language);
+    spinner.stop();
+
+    // 本地规则兜底检测
+    const localCheck = checkDanger(command, config.language);
+    const finalRisk = localCheck.risk === 'danger' ? 'danger'
+      : (localCheck.risk === 'warning' && result.risk === 'safe') ? 'warning'
+      : result.risk;
+    const finalWarning = localCheck.warnings.length > 0
+      ? localCheck.warnings.join('；')
+      : result.warning;
+
+    await displayExplanation(result.segments, result.summary, finalRisk, finalWarning);
+
+    // 记录历史
+    addHistory({ type: 'explain', input: command, output: result.summary });
+  } catch (err: any) {
+    spinner.stop();
+    await displayError(err.message || '解释命令失败');
+  }
+}
