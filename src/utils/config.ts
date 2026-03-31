@@ -129,11 +129,16 @@ export interface ProviderPreset {
 }
 
 export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
-  openai:    { provider: 'openai',    base_url: '',                                                    model: 'gpt-4o',                     label: 'OpenAI' },
-  anthropic: { provider: 'anthropic', base_url: '',                                                    model: 'claude-sonnet-4-20250514',   label: 'Anthropic Claude' },
-  qwen:      { provider: 'openai',    base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',   model: 'qwen-plus',                  label: '通义千问 (Qwen)' },
-  deepseek:  { provider: 'openai',    base_url: 'https://api.deepseek.com/v1',                         model: 'deepseek-chat',              label: 'DeepSeek' },
-  kimi:      { provider: 'openai',    base_url: 'https://api.moonshot.cn/v1',                          model: 'moonshot-v1-8k',             label: 'Moonshot KIMI' },
+  openai:      { provider: 'openai',    base_url: '',                                                    model: 'gpt-4o',                     label: 'OpenAI' },
+  anthropic:   { provider: 'anthropic', base_url: '',                                                    model: 'claude-sonnet-4-20250514',   label: 'Anthropic Claude' },
+  qwen:        { provider: 'openai',    base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',   model: 'qwen-plus',                  label: '通义千问 (Qwen)' },
+  deepseek:    { provider: 'openai',    base_url: 'https://api.deepseek.com/v1',                         model: 'deepseek-chat',              label: 'DeepSeek' },
+  kimi:        { provider: 'openai',    base_url: 'https://api.moonshot.cn/v1',                          model: 'moonshot-v1-8k',             label: 'Moonshot KIMI' },
+  minimax:     { provider: 'openai',    base_url: 'https://api.minimax.chat/v1',                         model: 'MiniMax-Text-01',            label: 'MiniMax' },
+  zhipu:       { provider: 'openai',    base_url: 'https://open.bigmodel.cn/api/paas/v4',                model: 'glm-4-flash',               label: '智谱 GLM' },
+  baichuan:    { provider: 'openai',    base_url: 'https://api.baichuan-ai.com/v1',                      model: 'Baichuan4',                  label: '百川 Baichuan' },
+  yi:          { provider: 'openai',    base_url: 'https://api.lingyiwanwu.com/v1',                      model: 'yi-large',                   label: '零一万物 (Yi)' },
+  siliconflow: { provider: 'openai',    base_url: 'https://api.siliconflow.cn/v1',                       model: 'deepseek-ai/DeepSeek-V3',    label: 'SiliconFlow' },
 };
 
 /** 应用提供商预设 */
