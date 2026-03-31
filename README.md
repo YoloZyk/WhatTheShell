@@ -78,6 +78,11 @@ wts config set-provider anthropic   # Anthropic Claude
 wts config set-provider qwen        # Qwen / Tongyi Qianwen
 wts config set-provider deepseek    # DeepSeek
 wts config set-provider kimi        # Moonshot KIMI
+wts config set-provider minimax     # MiniMax
+wts config set-provider zhipu       # Zhipu GLM (智谱)
+wts config set-provider baichuan    # Baichuan (百川)
+wts config set-provider yi          # Yi / Lingyi Wanwu (零一万物)
+wts config set-provider siliconflow # SiliconFlow (aggregator)
 ```
 
 Or use any OpenAI-compatible API:
