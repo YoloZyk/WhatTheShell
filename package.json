@@ -1,6 +1,6 @@
 {
   "name": "whattheshell",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI-powered shell command generator and explainer",
   "main": "dist/index.js",
   "bin": {
