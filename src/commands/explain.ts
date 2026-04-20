@@ -1,6 +1,7 @@
 import type { ExplainOptions, DetailLevel } from '../types';
 import { AIClient } from '../core/ai';
 import { checkDanger } from '../core/danger';
+import { collectContext } from '../core/context';
 import { loadConfig } from '../utils/config';
 import { addHistory } from '../utils/history';
 import { displayExplanation, displayError, startSpinner } from '../utils/display';
@@ -15,11 +16,14 @@ export async function explainCommand(command: string, options: ExplainOptions): 
 
   const level: DetailLevel = options.brief ? 'brief' : options.detail ? 'detail' : 'normal';
   const client = new AIClient(config.provider, config.api_key, config.model, config.base_url);
+  const ctx = config.context_enable
+    ? collectContext({ historyLines: config.context_history_lines })
+    : undefined;
 
   const spinner = await startSpinner('正在解析命令...');
 
   try {
-    const result = await client.explain(command, level, config.language);
+    const result = await client.explain(command, level, config.language, ctx);
     spinner.stop();
 
     // 本地规则兜底检测

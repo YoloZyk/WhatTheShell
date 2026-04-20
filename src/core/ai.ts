@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment } from '../types';
+import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot } from '../types';
 import { buildGeneratePrompt, buildExplainPrompt, buildAskPrompt } from './prompt';
 
 export class AIClient {
@@ -61,22 +61,22 @@ export class AIClient {
   }
 
   /** 生成命令 */
-  async generate(description: string, shell: ShellType, language: Language): Promise<GenerateResult> {
-    const prompt = buildGeneratePrompt(description, shell, language);
+  async generate(description: string, shell: ShellType, language: Language, ctx?: ContextSnapshot): Promise<GenerateResult> {
+    const prompt = buildGeneratePrompt(description, shell, language, ctx);
     const raw = await this.chat(prompt);
     return parseGenerateResponse(raw);
   }
 
   /** 解释命令 */
-  async explain(command: string, level: DetailLevel, language: Language): Promise<ExplainResult> {
-    const prompt = buildExplainPrompt(command, level, language);
+  async explain(command: string, level: DetailLevel, language: Language, ctx?: ContextSnapshot): Promise<ExplainResult> {
+    const prompt = buildExplainPrompt(command, level, language, ctx);
     const raw = await this.chat(prompt);
     return parseExplainResponse(raw);
   }
 
   /** 自由问答 */
-  async ask(question: string, language: Language): Promise<string> {
-    const prompt = buildAskPrompt(question, language);
+  async ask(question: string, language: Language, ctx?: ContextSnapshot): Promise<string> {
+    const prompt = buildAskPrompt(question, language, ctx);
     return this.chat(prompt);
   }
 }

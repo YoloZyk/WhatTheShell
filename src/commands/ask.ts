@@ -1,4 +1,5 @@
 import { AIClient } from '../core/ai';
+import { collectContext } from '../core/context';
 import { loadConfig } from '../utils/config';
 import { addHistory } from '../utils/history';
 import { displayAnswer, displayError, startSpinner } from '../utils/display';
@@ -12,10 +13,13 @@ export async function askCommand(question: string): Promise<void> {
   }
 
   const client = new AIClient(config.provider, config.api_key, config.model, config.base_url);
+  const ctx = config.context_enable
+    ? collectContext({ historyLines: config.context_history_lines })
+    : undefined;
   const spinner = await startSpinner('正在思考...');
 
   try {
-    const answer = await client.ask(question, config.language);
+    const answer = await client.ask(question, config.language, ctx);
     spinner.stop();
 
     await displayAnswer(answer);

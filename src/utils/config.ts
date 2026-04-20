@@ -15,10 +15,18 @@ export const DEFAULT_CONFIG: WtsConfig = {
   language: 'zh',
   shell: 'bash',
   history_limit: 100,
+  context_enable: true,
+  context_history_lines: 5,
 };
 
 /** 合法配置键 */
 const VALID_KEYS = new Set<string>(Object.keys(DEFAULT_CONFIG));
+
+/** 带点号的 CLI 键别名 → 实际存储键 */
+const KEY_ALIASES: Record<string, string> = {
+  'context.enable': 'context_enable',
+  'context.history_lines': 'context_history_lines',
+};
 
 /** 配置项校验规则 */
 const VALIDATORS: Record<string, (v: string) => boolean> = {
@@ -27,6 +35,8 @@ const VALIDATORS: Record<string, (v: string) => boolean> = {
   language: (v) => ['zh', 'en'].includes(v),
   shell: (v) => ['bash', 'zsh', 'powershell', 'fish'].includes(v),
   history_limit: (v) => /^\d+$/.test(v) && parseInt(v) > 0,
+  context_enable: (v) => ['true', 'false', '1', '0'].includes(v.toLowerCase()),
+  context_history_lines: (v) => /^\d+$/.test(v) && parseInt(v) >= 0,
 };
 
 /** 确保 ~/.wts 目录存在 */
@@ -72,13 +82,18 @@ export function getConfigValue(key: keyof WtsConfig): string {
 
 /** 设置单个配置项 */
 export function setConfigValue(key: string, value: string): void {
-  if (!VALID_KEYS.has(key)) {
+  // 支持 "context.enable" 这类语义化点号键
+  const resolvedKey = KEY_ALIASES[key] || key;
+
+  if (!VALID_KEYS.has(resolvedKey)) {
     console.error(`  无效的配置项: ${key}`);
-    console.error(`  可用配置项: ${[...VALID_KEYS].join(', ')}`);
+    const friendly = [...VALID_KEYS].filter(k => !Object.values(KEY_ALIASES).includes(k) || Object.keys(KEY_ALIASES).some(a => KEY_ALIASES[a] === k));
+    const aliases = Object.keys(KEY_ALIASES);
+    console.error(`  可用配置项: ${friendly.concat(aliases).join(', ')}`);
     return;
   }
 
-  const validator = VALIDATORS[key];
+  const validator = VALIDATORS[resolvedKey];
   if (validator && !validator(value)) {
     const hints: Record<string, string> = {
       provider: 'openai, anthropic',
@@ -86,20 +101,26 @@ export function setConfigValue(key: string, value: string): void {
       language: 'zh, en',
       shell: 'bash, zsh, powershell, fish',
       history_limit: '正整数',
+      context_enable: 'true, false',
+      context_history_lines: '非负整数（0 表示不注入 history）',
     };
     console.error(`  无效的值: ${value}`);
-    console.error(`  ${key} 的可选值: ${hints[key]}`);
+    console.error(`  ${key} 的可选值: ${hints[resolvedKey]}`);
     return;
   }
 
   const config = loadConfig();
-  if (key === 'history_limit') {
-    (config as any)[key] = parseInt(value);
+  if (resolvedKey === 'history_limit' || resolvedKey === 'context_history_lines') {
+    (config as any)[resolvedKey] = parseInt(value);
+  } else if (resolvedKey === 'context_enable') {
+    (config as any)[resolvedKey] = ['true', '1'].includes(value.toLowerCase());
   } else {
-    (config as any)[key] = value;
+    (config as any)[resolvedKey] = value;
   }
   saveConfig(config);
-  console.log(`  ✓ ${key} = ${key === 'api_key' ? maskValue(value) : value}`);
+
+  const displayValue = resolvedKey === 'api_key' ? maskValue(value) : (config as any)[resolvedKey];
+  console.log(`  ✓ ${key} = ${displayValue}`);
 }
 
 /** 列出所有配置 */
@@ -111,6 +132,11 @@ export function listConfig(): void {
     const display = key === 'api_key' ? maskValue(String(value)) : value;
     console.log(`  ${key} = ${display}`);
   }
+  console.log();
+  const ctxState = config.context_enable
+    ? `on (history_lines=${config.context_history_lines})`
+    : 'off';
+  console.log(`  Context collection: ${ctxState}`);
 }
 
 /** 脱敏显示 */
