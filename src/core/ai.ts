@@ -81,8 +81,16 @@ export class AIClient {
   }
 }
 
+/** 剥掉整段被包进 ```...``` 的 fence，保留内部原文；未匹配到则原样返回 */
+function stripMarkdownFence(raw: string): string {
+  const s = raw.replace(/\r\n/g, '\n').trim();
+  const m = s.match(/^```[a-zA-Z0-9_-]*\s*\n([\s\S]*?)\n```\s*$/);
+  return m ? m[1].trim() : s;
+}
+
 /** 解析 generate 响应 */
 function parseGenerateResponse(raw: string): GenerateResult {
+  raw = stripMarkdownFence(raw);
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
   let risk: RiskLevel = 'safe';
   let warning: string | undefined;

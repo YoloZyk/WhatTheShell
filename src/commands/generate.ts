@@ -16,7 +16,8 @@ export async function generateCommand(description: string, options: GenerateOpti
   if (!config.api_key) {
     if (options.inline) {
       process.stderr.write('wts: API Key 未设置，运行 `wts config set api_key <key>`\n');
-      process.exit(2);
+      process.exitCode = 2;
+      return;
     }
     await displayError('API Key 未设置，请先运行: wts config set api_key <your-key>');
     return;
@@ -101,7 +102,7 @@ async function runInlineMode(
   try {
     const enriched = buffer ? withBufferContext(description, buffer) : description;
     const result = await client.generate(enriched, shell, language, ctx);
-    const cleaned = result.command.trim();
+    const cleaned = normalizeInlineCommand(result.command);
 
     const localCheck = checkDanger(cleaned, language);
     const risk = localCheck.risk === 'danger' ? 'danger' : result.risk;
@@ -109,16 +110,33 @@ async function runInlineMode(
     if (risk === 'danger') {
       const warning = localCheck.warnings.join('；') || result.warning || '该命令可能有不可逆后果';
       process.stderr.write(`wts: 拒绝填回危险命令 — ${warning}\n`);
-      process.stderr.write(`     建议: ${cleaned}\n`);
-      process.exit(3);
+      process.stderr.write(`     已拦截: ${cleaned}\n`);
+      process.exitCode = 3;
+      return;
+    }
+
+    // 填回 readline buffer 必须是单行；多行在 bash READLINE_LINE 里会被当作 Enter 直接执行
+    if (cleaned.includes('\n')) {
+      process.stderr.write('wts: 模型返回多行命令，拒绝填回（改用 `wts generate` 走交互模式）\n');
+      process.stderr.write(`     已拦截: ${cleaned.split('\n').join(' ⏎ ')}\n`);
+      process.exitCode = 4;
+      return;
     }
 
     process.stdout.write(cleaned + '\n');
-    process.exit(0);
   } catch (err: any) {
     process.stderr.write(`wts: ${err.message || '生成命令失败'}\n`);
-    process.exit(1);
+    process.exitCode = 1;
   }
+}
+
+/** 归一化 inline 输出：剥 markdown fence、规整换行、去首尾空白 */
+function normalizeInlineCommand(raw: string): string {
+  let s = raw.replace(/\r\n/g, '\n').replace(/\r/g, '');
+  // AI 常把命令包在 ```bash ... ``` / ``` ... ``` 里，即便被要求不要解释
+  const fence = s.match(/^\s*```[a-zA-Z0-9_-]*\s*\n([\s\S]*?)\n```\s*$/);
+  if (fence) s = fence[1];
+  return s.trim();
 }
 
 function withBufferContext(description: string, buffer: string): string {
