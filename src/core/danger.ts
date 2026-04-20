@@ -30,6 +30,23 @@ const DANGER_RULES: DangerRule[] = [
   { pattern: /\bcurl\b.*\|\s*(bash|sh|zsh)\b/, level: 'warning', message_zh: '从网络下载并直接执行脚本，存在安全风险', message_en: 'Downloading and executing script from network, security risk' },
   { pattern: /\bwget\b.*&&.*\b(bash|sh|zsh)\b/, level: 'warning', message_zh: '从网络下载并执行脚本，存在安全风险', message_en: 'Downloading and executing script from network, security risk' },
   { pattern: /\b>\s+[^|&\s]+\s*$/, level: 'warning', message_zh: '重定向覆盖文件，原内容将丢失', message_en: 'Redirecting to file, original content will be lost' },
+
+  // Windows / PowerShell 高危
+  { pattern: /\bRemove-Item\b(?=[^\n]*-Recurse\b)(?=[^\n]*-Force\b)/i, level: 'danger', message_zh: 'Remove-Item -Recurse -Force 递归强制删除，可能不可恢复', message_en: 'Remove-Item -Recurse -Force is irreversible recursive delete' },
+  { pattern: /\bRemove-Item\b(?=[^\n]*-Force\b)(?=[^\n]*[Cc]:\\)/i, level: 'danger', message_zh: '强制删除 C 盘路径，风险极高', message_en: 'Force-removing path on C: drive, extremely risky' },
+  { pattern: /\bFormat-Volume\b/i, level: 'danger', message_zh: '格式化卷，所有数据将丢失', message_en: 'Format-Volume wipes the entire volume' },
+  { pattern: /\bClear-Disk\b/i, level: 'danger', message_zh: '清空磁盘分区表', message_en: 'Clear-Disk erases the partition table' },
+  { pattern: /\bdiskpart\b/i, level: 'danger', message_zh: 'diskpart 交互式磁盘工具，易误操作', message_en: 'diskpart is a low-level disk tool, easy to misuse' },
+  { pattern: /\bdel\b[^\n]*\/s\b[^\n]*\/q\b|\bdel\b[^\n]*\/q\b[^\n]*\/s\b/i, level: 'danger', message_zh: 'del /s /q 递归强制删除，不经回收站', message_en: 'del /s /q recursively force-deletes without recycle bin' },
+  { pattern: /\brmdir\b[^\n]*\/s\b/i, level: 'danger', message_zh: 'rmdir /s 递归删除目录', message_en: 'rmdir /s recursively deletes directory tree' },
+  { pattern: /\bformat\s+[A-Za-z]:/i, level: 'danger', message_zh: '格式化盘符，数据将被清除', message_en: 'format <drive>: erases all data on the volume' },
+
+  // Windows / PowerShell 需注意
+  { pattern: /\bStop-Computer\b/i, level: 'warning', message_zh: 'Stop-Computer 将关机', message_en: 'Stop-Computer will shut down the machine' },
+  { pattern: /\bRestart-Computer\b/i, level: 'warning', message_zh: 'Restart-Computer 将重启', message_en: 'Restart-Computer will reboot the machine' },
+  { pattern: /\bSet-ExecutionPolicy\b[^\n]*\b(?:Unrestricted|Bypass)\b/i, level: 'warning', message_zh: '放开 PowerShell 脚本执行策略，存在安全风险', message_en: 'Loosens PowerShell execution policy, security risk' },
+  { pattern: /\b(?:iwr|Invoke-WebRequest)\b[^\n]*\|\s*(?:iex|Invoke-Expression)\b/i, level: 'warning', message_zh: '从网络拉取内容并直接执行，存在安全风险', message_en: 'Piping web content into Invoke-Expression, security risk' },
+  { pattern: /\bGet-Process\b[^\n]*\|\s*[^|\n]*\bStop-Process\b/i, level: 'warning', message_zh: '批量终止进程，请确认目标', message_en: 'Bulk Stop-Process, verify the target set' },
 ];
 
 export interface DangerCheckResult {

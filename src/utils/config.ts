@@ -133,10 +133,49 @@ export function listConfig(): void {
     console.log(`  ${key} = ${display}`);
   }
   console.log();
+
+  // 健康检查：API Key + Context + Shell 集成安装状态
+  const keyState = config.api_key
+    ? '✓ 已设置'
+    : '✗ 未设置（运行 wts init 开始配置）';
+  console.log(`  API Key: ${keyState}`);
+
   const ctxState = config.context_enable
     ? `on (history_lines=${config.context_history_lines})`
     : 'off';
   console.log(`  Context collection: ${ctxState}`);
+
+  const integ = detectShellIntegrationState();
+  console.log(`  Shell integration: ${integ}`);
+}
+
+/** 检查常见 shell rc 文件里是否已装 wts 集成 */
+function detectShellIntegrationState(): string {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  if (!home) return '? 无法确定 HOME 目录';
+
+  const candidates: Array<{ shell: string; file: string }> = [
+    { shell: 'zsh', file: path.join(home, '.zshrc') },
+    { shell: 'bash', file: path.join(home, '.bashrc') },
+    { shell: 'bash', file: path.join(home, '.bash_profile') },
+    { shell: 'fish', file: path.join(home, '.config', 'fish', 'conf.d', 'wts.fish') },
+  ];
+
+  const installed: string[] = [];
+  for (const c of candidates) {
+    try {
+      if (!fs.existsSync(c.file)) continue;
+      const content = fs.readFileSync(c.file, 'utf-8');
+      if (content.includes('wts shell-init') || c.file.endsWith('wts.fish')) {
+        if (!installed.includes(c.shell)) installed.push(c.shell);
+      }
+    } catch {
+      /* 忽略单个文件读取错误 */
+    }
+  }
+
+  if (installed.length === 0) return '✗ 未安装（运行 wts init 或 eval "$(wts shell-init <shell>)"）';
+  return `✓ 已装 (${installed.join(', ')})`;
 }
 
 /** 脱敏显示 */
