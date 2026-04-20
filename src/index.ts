@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { generateCommand } from './commands/generate';
 import { explainCommand } from './commands/explain';
 import { askCommand } from './commands/ask';
+import { shellInitCommand } from './commands/shellInit';
 import { setConfigValue, listConfig, applyPreset, PROVIDER_PRESETS } from './utils/config';
 import { getHistory, clearHistory } from './utils/history';
 
@@ -12,7 +13,7 @@ const program = new Command();
 program
   .name('wts')
   .description('WhatTheShell — AI 驱动的终端命令生成与解释工具')
-  .version('0.1.0');
+  .version('0.2.0');
 
 // generate 命令
 program
@@ -22,6 +23,9 @@ program
   .option('-r, --run', '生成后直接执行（仅限安全命令）')
   .option('-c, --copy', '将结果复制到剪贴板')
   .option('-s, --shell <shell>', '指定目标 Shell (bash/zsh/powershell/fish)')
+  .option('--inline', '行内模式：stdout 输出纯净命令，不走 UI（供 shell 集成脚本调用）')
+  .option('--buffer <buffer>', '当前命令行 buffer（由 shell 集成脚本传入）')
+  .option('--history-file <path>', '外部 shell history 文件路径（由 shell 集成脚本传入）')
   .action(async (description: string, options) => {
     await generateCommand(description, options);
   });
@@ -46,6 +50,14 @@ program
     await askCommand(question);
   });
 
+// shell-init 命令：打印 shell 集成脚本到 stdout
+program
+  .command('shell-init [shell]')
+  .description('打印 shell 集成脚本（支持 zsh/bash）。用法: eval "$(wts shell-init zsh)"')
+  .action((shell?: string) => {
+    shellInitCommand(shell);
+  });
+
 // config 命令
 const configCmd = program
   .command('config')
@@ -53,7 +65,7 @@ const configCmd = program
 
 configCmd
   .command('set <key> <value>')
-  .description('设置配置项 (api_key, model, language, shell, provider, base_url)')
+  .description('设置配置项 (api_key, model, language, shell, provider, base_url, context.enable, context.history_lines)')
   .action((key: string, value: string) => {
     setConfigValue(key, value);
   });

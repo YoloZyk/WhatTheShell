@@ -2,6 +2,7 @@ import type { GenerateOptions, ShellType } from '../types';
 import { AIClient } from '../core/ai';
 import { detectShell } from '../core/shell';
 import { checkDanger } from '../core/danger';
+import { collectContext } from '../core/context';
 import { loadConfig } from '../utils/config';
 import { copyToClipboard } from '../utils/clipboard';
 import { addHistory } from '../utils/history';
@@ -13,6 +14,10 @@ export async function generateCommand(description: string, options: GenerateOpti
   const config = loadConfig();
 
   if (!config.api_key) {
+    if (options.inline) {
+      process.stderr.write('wts: API Key 未设置，运行 `wts config set api_key <key>`\n');
+      process.exit(2);
+    }
     await displayError('API Key 未设置，请先运行: wts config set api_key <your-key>');
     return;
   }
@@ -20,10 +25,24 @@ export async function generateCommand(description: string, options: GenerateOpti
   const shell: ShellType = options.shell || config.shell || detectShell();
   const client = new AIClient(config.provider, config.api_key, config.model, config.base_url);
 
+  const ctx = config.context_enable
+    ? collectContext({
+        historyLines: config.context_history_lines,
+        historyFile: options.historyFile,
+      })
+    : undefined;
+
+  // 行内模式：供 shell 集成脚本调用，stdout 只输出纯净命令
+  if (options.inline) {
+    await runInlineMode(client, description, shell, config.language, ctx, options.buffer);
+    return;
+  }
+
   const spinner = await startSpinner('正在生成命令...');
 
   try {
-    const result = await client.generate(description, shell, config.language);
+    const enriched = options.buffer ? withBufferContext(description, options.buffer) : description;
+    const result = await client.generate(enriched, shell, config.language, ctx);
     spinner.stop();
 
     // 本地规则兜底：对 AI 返回的命令再做一次危险检测
@@ -68,6 +87,44 @@ export async function generateCommand(description: string, options: GenerateOpti
     spinner.stop();
     await displayError(err.message || '生成命令失败');
   }
+}
+
+/** 行内模式：stdout 只输出命令，无任何 UI；危险命令则 stderr 警告 + 非 0 退出 */
+async function runInlineMode(
+  client: AIClient,
+  description: string,
+  shell: ShellType,
+  language: 'zh' | 'en',
+  ctx: ReturnType<typeof collectContext> | undefined,
+  buffer?: string,
+): Promise<void> {
+  try {
+    const enriched = buffer ? withBufferContext(description, buffer) : description;
+    const result = await client.generate(enriched, shell, language, ctx);
+    const cleaned = result.command.trim();
+
+    const localCheck = checkDanger(cleaned, language);
+    const risk = localCheck.risk === 'danger' ? 'danger' : result.risk;
+
+    if (risk === 'danger') {
+      const warning = localCheck.warnings.join('；') || result.warning || '该命令可能有不可逆后果';
+      process.stderr.write(`wts: 拒绝填回危险命令 — ${warning}\n`);
+      process.stderr.write(`     建议: ${cleaned}\n`);
+      process.exit(3);
+    }
+
+    process.stdout.write(cleaned + '\n');
+    process.exit(0);
+  } catch (err: any) {
+    process.stderr.write(`wts: ${err.message || '生成命令失败'}\n`);
+    process.exit(1);
+  }
+}
+
+function withBufferContext(description: string, buffer: string): string {
+  const trimmed = buffer.trim();
+  if (!trimmed) return description;
+  return `The user is currently editing this partial command:\n\`\`\`\n${trimmed}\n\`\`\`\nThey want to: ${description}\nGenerate a complete replacement command.`;
 }
 
 /** 交互确认：[R]un [C]opy [E]dit [Q]uit */
