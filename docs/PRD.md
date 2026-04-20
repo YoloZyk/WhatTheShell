@@ -46,6 +46,8 @@ find . -type f -size +100M -exec ls -lhS {} + | sort -k5 -h
 - 自动检测当前 Shell 环境（bash/zsh/powershell/fish）并生成对应语法
 - 支持通过 `--shell <name>` 手动指定目标 Shell
 - [E]dit 可让用户在终端内修改命令后重新进入确认流程
+- 支持 `--inline` 模式（v0.2）：从 stdin 读当前命令行 buffer，stdout 输出生成的命令，不走 UI、不进历史。供 Shell 集成脚本调用（详见 3.4）
+- 调用 AI 前自动注入轻量上下文（PWD、项目类型、git 状态、最近 shell 命令），详见 4.6
 
 ### 3.2 `wts explain` — 命令解释
 
@@ -73,6 +75,30 @@ $ wts explain "awk '{sum += $5} END {print sum}' access.log"
 $ wts ask "bash 和 zsh 的主要区别是什么？"
 ```
 
+### 3.4 `wts shell-init` — Shell 集成（v0.2 新增）
+
+生成 Shell 集成脚本，让用户在命令行任意位置按 `Ctrl+G` 即可呼出 wts。
+
+```bash
+# 输出 zsh 集成脚本到 stdout（不修改任何 rc 文件）
+$ wts shell-init zsh
+
+# 推荐装配方式：在 ~/.zshrc 末尾加一行
+eval "$(wts shell-init zsh)"
+```
+
+集成后，在 zsh / bash 里按 `Ctrl+G`：
+
+1. 弹出 mini prompt 让你用自然语言描述意图
+2. wts 读取当前命令行 buffer + 采集上下文 → 调 AI 生成新命令
+3. 新命令**填回命令行但不执行**；按回车才跑，按 ESC 恢复原 buffer
+
+**关键行为：**
+- 仅支持 `zsh` 与 `bash`（fish / pwsh 推迟到 v0.3）
+- 采用 `eval "$(wts shell-init <shell>)"` 方案，不修改 rc 文件、无需 install / uninstall
+- AI 响应 > 1s 时显示 spinner；按 ESC 随时取消并还原原 buffer
+- 危险命令不直接填回 buffer，改为在上方打印警告并保留原 buffer
+
 ---
 
 ## 4. 辅助功能
@@ -90,14 +116,16 @@ $ wts history --clear  # 清除历史
 ### 4.2 配置管理
 
 ```bash
-$ wts config set api_key sk-xxx        # 设置 API Key
-$ wts config set model gpt-4o          # 设置模型
-$ wts config set language zh            # 输出语言（zh/en）
-$ wts config set shell bash             # 默认目标 Shell
-$ wts config set provider openai        # API 协议类型（openai/anthropic）
-$ wts config set base_url https://...   # 自定义 API 端点
-$ wts config set-provider deepseek      # 一键切换提供商预设
-$ wts config list                       # 查看所有配置
+$ wts config set api_key sk-xxx               # 设置 API Key
+$ wts config set model gpt-4o                 # 设置模型
+$ wts config set language zh                  # 输出语言（zh/en）
+$ wts config set shell bash                   # 默认目标 Shell
+$ wts config set provider openai              # API 协议类型（openai/anthropic）
+$ wts config set base_url https://...         # 自定义 API 端点
+$ wts config set context.enable true          # 上下文采集开关 (v0.2)
+$ wts config set context.history_lines 5     # 注入的 shell history 行数 (v0.2)
+$ wts config set-provider deepseek            # 一键切换提供商预设
+$ wts config list                             # 查看所有配置
 ```
 
 - 配置文件存储于 `~/.wts/config.toml`
@@ -131,6 +159,20 @@ wts a  = wts ask
 - **高危（DANGER）**：`rm -rf`、`dd of=`、`mkfs`、`> /dev/sdX`、`chmod 777 /` 等 → 禁止 --run，强制确认
 - **中等风险（CAUTION）**：`sudo`、`kill -9`、`curl | bash`、`shutdown` 等 → 显示警告
 
+### 4.6 上下文感知（v0.2 新增）
+
+`generate / explain / ask` 在调用 AI 前自动采集轻量上下文快照，注入 prompt，让模型理解"你在哪个项目、处于什么 git 状态、最近敲了什么"。
+
+**采集项：**
+- **PWD + 项目标记**：`package.json` / `Cargo.toml` / `go.mod` / `pyproject.toml` / `docker-compose.yml` / `Dockerfile` 是否存在；存在则读出其中的 scripts / targets 名字
+- **Git**：是否 repo、当前分支、dirty 状态、上游、最近 3 条 commit subject
+- **Shell history**：最近 N 条（默认 5，由 `context.history_lines` 控制；来源优先集成脚本传入，fallback 到 `$HISTFILE`）
+
+**隐私保护：**
+- 内置 sanitizer 自动剥离 `--token=*` / `Authorization:` / `password=` / AK/SK 等敏感字段
+- `wts config set context.enable false` 可一键关闭全部采集
+- `wts config list` 会显示当前 Context collection 开关状态
+
 ---
 
 ## 5. 技术方案
@@ -152,22 +194,29 @@ wts a  = wts ask
 ```
 wts/
 ├── src/
-│   ├── index.ts            # 入口 & CLI 定义
+│   ├── index.ts                    # 入口 & CLI 定义
 │   ├── commands/
-│   │   ├── generate.ts     # generate 命令
-│   │   ├── explain.ts      # explain 命令
-│   │   └── ask.ts          # ask 命令
+│   │   ├── generate.ts             # generate 命令（含 --inline 模式）
+│   │   ├── explain.ts              # explain 命令
+│   │   ├── ask.ts                  # ask 命令
+│   │   └── shellInit.ts            # shell-init 命令 (v0.2)
 │   ├── core/
-│   │   ├── ai.ts           # AI API 调用封装（OpenAI 兼容 + Anthropic）
-│   │   ├── prompt.ts       # Prompt 模板管理
-│   │   ├── danger.ts       # 危险命令本地规则检测
-│   │   └── shell.ts        # Shell 环境检测
+│   │   ├── ai.ts                   # AI API 调用封装（OpenAI 兼容 + Anthropic）
+│   │   ├── prompt.ts               # Prompt 模板管理（含 ctx 注入）
+│   │   ├── danger.ts               # 危险命令本地规则检测
+│   │   ├── shell.ts                # Shell 环境检测
+│   │   └── context.ts              # 上下文采集 + sanitizer (v0.2)
+│   ├── integrations/
+│   │   └── shell/                  # Shell 集成脚本模板 (v0.2)
+│   │       ├── index.ts            # renderInitScript(shell) 统一入口
+│   │       ├── zsh.ts              # zsh 模板
+│   │       └── bash.ts             # bash 模板
 │   ├── utils/
-│   │   ├── config.ts       # 配置读写 + 提供商预设
-│   │   ├── history.ts      # 历史记录
-│   │   ├── clipboard.ts    # 剪贴板
-│   │   └── display.ts      # 输出格式化（chalk + ora）
-│   └── types.ts            # 类型定义
+│   │   ├── config.ts               # 配置读写 + 提供商预设
+│   │   ├── history.ts              # 历史记录
+│   │   ├── clipboard.ts            # 剪贴板
+│   │   └── display.ts              # 输出格式化（chalk + ora）
+│   └── types.ts                    # 类型定义
 ├── package.json
 ├── tsconfig.json
 └── docs/
@@ -208,15 +257,6 @@ npx whattheshell generate "..."
 | 阶段 | 内容 | 状态 |
 |------|------|------|
 | **v0.1** | `generate` + `explain` + `ask` 核心功能，配置管理，多模型支持，危险检测，历史记录 | ✅ 已完成 |
-| **v0.2** | Shell 自动检测增强、多轮对话、输出优化 | 待开发 |
-| **v0.3** | 插件系统、本地模型支持（Ollama） | 待开发 |
-| **v1.0** | npm 发布、完整文档、CI/CD | 待开发 |
+| **v0.2** | `Ctrl+G` 行内触发（zsh/bash 集成）、上下文感知 prompt 注入 | 🚧 开发中 |
+| **v0.3+** | 失败命令 debug hook、fish/pwsh 支持、UI 升级与更多功能 | 待规划 |
 
----
-
-## 9. 开放问题
-
-- [ ] 是否支持多轮对话（连续追问优化生成结果）？
-- [ ] 是否提供 Web UI 或 TUI 界面？
-- [ ] 是否支持本地模型（如 Ollama）以实现离线使用？
-- [ ] 包名 `whattheshell` 在 npm 上是否可用？
