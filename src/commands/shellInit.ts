@@ -24,13 +24,7 @@ export function shellInitCommand(shellArg?: string): void {
     process.stderr.write(
       `wts shell-init: 这条命令会把集成脚本打印到 stdout 给 shell 吃，不是给你看的。\n` +
       `\n` +
-      `  当前会话启用：\n` +
-      `    eval "$(wts shell-init ${shell})"\n` +
-      `\n` +
-      `  永久安装：\n` +
-      (shell === 'zsh' || shell === 'bash'
-        ? `    echo 'eval "$(wts shell-init ${shell})"' >> ~/.${shell}rc\n`
-        : `    把上面那行 eval 追加到你的 shell 配置文件\n`) +
+      renderInstallHint(shell) +
       `\n` +
       `  下面这坨是脚本正文，仅供好奇：\n` +
       `\n`
@@ -38,4 +32,36 @@ export function shellInitCommand(shellArg?: string): void {
   }
 
   process.stdout.write(renderInitScript(shell));
+}
+
+function renderInstallHint(shell: string): string {
+  if (shell === 'zsh' || shell === 'bash') {
+    return (
+      `  当前会话启用：\n` +
+      `    eval "$(wts shell-init ${shell})"\n` +
+      `\n` +
+      `  永久安装：\n` +
+      `    echo 'eval "$(wts shell-init ${shell})"' >> ~/.${shell}rc\n`
+    );
+  }
+  if (shell === 'fish') {
+    return (
+      `  当前会话启用：\n` +
+      `    wts shell-init fish | source\n` +
+      `\n` +
+      `  永久安装：\n` +
+      `    wts shell-init fish > ~/.config/fish/conf.d/wts.fish\n`
+    );
+  }
+  if (shell === 'powershell') {
+    return (
+      `  当前会话启用：\n` +
+      `    wts shell-init powershell | Out-String | Invoke-Expression\n` +
+      `\n` +
+      `  永久安装：\n` +
+      `    wts shell-init powershell | Out-String | Add-Content -Path $PROFILE\n` +
+      `    # 然后新开一个 PowerShell 窗口，或 . $PROFILE 重新加载\n`
+    );
+  }
+  return '  把上面那行 eval 追加到你的 shell 配置文件\n';
 }

@@ -154,19 +154,30 @@ function detectShellIntegrationState(): string {
   const home = process.env.HOME || process.env.USERPROFILE || '';
   if (!home) return '? 无法确定 HOME 目录';
 
-  const candidates: Array<{ shell: string; file: string }> = [
-    { shell: 'zsh', file: path.join(home, '.zshrc') },
-    { shell: 'bash', file: path.join(home, '.bashrc') },
-    { shell: 'bash', file: path.join(home, '.bash_profile') },
-    { shell: 'fish', file: path.join(home, '.config', 'fish', 'conf.d', 'wts.fish') },
+  const candidates: Array<{ shell: string; file: string; marker: string }> = [
+    { shell: 'zsh', file: path.join(home, '.zshrc'), marker: 'wts shell-init' },
+    { shell: 'bash', file: path.join(home, '.bashrc'), marker: 'wts shell-init' },
+    { shell: 'bash', file: path.join(home, '.bash_profile'), marker: 'wts shell-init' },
+    // fish: 存在性本身就算装上（我们的 init 会写这个文件）
+    { shell: 'fish', file: path.join(home, '.config', 'fish', 'conf.d', 'wts.fish'), marker: '' },
+    // PowerShell 7 (Windows)
+    { shell: 'powershell', file: path.join(home, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'), marker: 'wts shell-init' },
+    // Windows PowerShell 5.1
+    { shell: 'powershell', file: path.join(home, 'Documents', 'WindowsPowerShell', 'Microsoft.PowerShell_profile.ps1'), marker: 'wts shell-init' },
+    // PowerShell Core on macOS / Linux
+    { shell: 'powershell', file: path.join(home, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'), marker: 'wts shell-init' },
   ];
 
   const installed: string[] = [];
   for (const c of candidates) {
     try {
       if (!fs.existsSync(c.file)) continue;
+      if (c.marker === '') {
+        if (!installed.includes(c.shell)) installed.push(c.shell);
+        continue;
+      }
       const content = fs.readFileSync(c.file, 'utf-8');
-      if (content.includes('wts shell-init') || c.file.endsWith('wts.fish')) {
+      if (content.includes(c.marker)) {
         if (!installed.includes(c.shell)) installed.push(c.shell);
       }
     } catch {
