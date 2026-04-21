@@ -27,7 +27,7 @@ export async function generateCommand(description: string, options: GenerateOpti
 
   // Inline mode: invoked by shell integrations; stdout emits only the bare command
   if (options.inline) {
-    await runInlineMode(client, description, shell, config.language, ctx, options.buffer);
+    await runInlineMode(client, description, shell, ctx, options.buffer);
     return;
   }
 
@@ -82,21 +82,22 @@ export async function generateCommand(description: string, options: GenerateOpti
   }
 }
 
-/** Inline mode: stdout emits the command only; dangerous commands yield stderr + non-zero exit. */
+/** Inline mode: stdout emits the command only; dangerous commands yield stderr + non-zero exit.
+ *  stderr text is always English — it's piped through shell encoding layers (notably PS 5.1 on
+ *  Chinese Windows reading via CP936) where any non-ASCII would render as mojibake. */
 async function runInlineMode(
   client: AIClient,
   description: string,
   shell: ShellType,
-  language: 'zh' | 'en',
   ctx: ReturnType<typeof collectContext> | undefined,
   buffer?: string,
 ): Promise<void> {
   try {
     const enriched = buffer ? withBufferContext(description, buffer) : description;
-    const result = await client.generate(enriched, shell, language, ctx);
+    const result = await client.generate(enriched, shell, 'en', ctx);
     const cleaned = normalizeInlineCommand(result.command);
 
-    const localCheck = checkDanger(cleaned, language);
+    const localCheck = checkDanger(cleaned, 'en');
     const risk = localCheck.risk === 'danger' ? 'danger' : result.risk;
 
     if (risk === 'danger') {

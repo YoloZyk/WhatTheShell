@@ -203,6 +203,20 @@ The i18n pass hardcoded all user-facing CLI strings to English (menus, prompts, 
 
 One deliberate bilingual holdout: `src/core/danger.ts` keeps `message_zh` + `message_en` per rule, and callers pass `config.language` so danger warnings still localize with the AI output.
 
+**Exception**: `runInlineMode` in `src/commands/generate.ts` always passes `'en'` regardless of `config.language`. Reason in the next entry.
+
+### PowerShell 5.1 stderr is a three-way trap
+
+Inline mode exercised on PS 5.1 (Chinese Windows) hit three stacked problems simultaneously. Any future work that has `wts` write to stderr and be consumed by a PS 5.1 wrapper script will re-hit these. Relevant commit: `e9ba215` (see §3).
+
+1. **Encoding**: PS 5.1's default `[Console]::OutputEncoding` is the system ANSI code page (CP936 on zh-CN Windows). Node writes UTF-8 → PS decodes as CP936 → mojibake. PS 7 defaults to UTF-8 and doesn't hit this.
+2. **`NativeCommandError` wrapping**: PS 5.1 produces a `NativeCommandError` ErrorRecord *whenever* a native command writes to stderr — even with a non-zero exit, even with `2>$file` redirecting to a file. The user sees a PS error stack ("所在位置 wts.ps1:24 字符: 5") piled on top of our actual message. Only `2>&1` (merging stderr into the success stream) then splitting by ErrorRecord type in the pipeline avoids triggering this.
+3. **`$ErrorActionPreference = 'Stop'`** (if the user sets it globally): makes the pipeline abort on the first ErrorRecord instead of collecting all lines.
+
+The PS integration in `src/integrations/shell/powershell.ts` handles all three: saves + restores `[Console]::OutputEncoding` and `$ErrorActionPreference`, flips to UTF-8-no-BOM + `Continue`, then `& wts @wtsArgs 2>&1 | ForEach-Object { if ($_ -is [ErrorRecord]) ... }` splits into two ArrayLists.
+
+**Belt-and-suspenders**: `runInlineMode` also forces all its stderr text to English (`checkDanger(cmd, 'en')` + `client.generate(..., 'en', ...)`). So if a future shell or platform layer mishandles encoding, the user still gets readable ASCII rather than mojibake. When writing new stderr messages inline-mode-adjacent, keep them English.
+
 ### CRLF warnings everywhere
 
 `.gitattributes` isn't set; Windows git emits `LF will be replaced by CRLF` on every commit. Cosmetic, ignore. If we want to silence them, add `.gitattributes` with `* text=auto eol=lf` — that's a future chore, not urgent.
