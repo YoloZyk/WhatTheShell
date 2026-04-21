@@ -47,6 +47,7 @@ The user explicitly asked for these two to happen **before** diving into Phase 2
 All commits are on `main`. Not pushed to `origin` yet — the user said "只提交，不 push" at the start of the v0.2 work; that still holds unless told otherwise.
 
 ```
+3a2f1be fix(powershell): force UTF-8 and split stderr in PSReadLine widget  (Phase 1 followup)
 cbe6001 feat: i18n all user-facing CLI strings to English           (Phase 2.4)
 4cf9edd docs: add HANDOFF.md for session continuity
 e7b3a00 feat: add `wts init` wizard and auto-trigger on missing API key
@@ -61,7 +62,11 @@ e5d8405 feat: Phase 1 quick wins — Windows danger rules, TTY-aware shell-init,
 f5ed4c6 feat: inject PWD/git/history context into AI prompts
 ```
 
+(`2ae729c` and this commit are pure doc updates and omitted from the narrative list.)
+
 Narrative (Phase 1 highlights plus Phase 2 progress):
+
+- **PS 5.1 stderr fix** (`3a2f1be`): Ctrl+G widget on PS 5.1 Chinese Windows showed mojibake + a `NativeCommandError` stack whenever `wts --inline` exited on stderr (e.g. refused `rm -rf temp`). Root cause was three layered PS 5.1 quirks — see §7 "PowerShell 5.1 stderr is a three-way trap" for the full write-up. Widget now saves/restores `[Console]::OutputEncoding` + `$ErrorActionPreference`, flips to UTF-8-no-BOM + `Continue`, and uses `2>&1 | ForEach-Object` ErrorRecord-vs-string splitting instead of temp files. `runInlineMode` also pins its stderr language to `'en'` as defense in depth.
 
 - **i18n to English** (`cbe6001`, Phase 2.4): all menus, prompts, errors, spinner text, help descriptions, `wts init` wizard copy, `shell-init` TTY hint, and `listConfig` health labels translated to English. `DEFAULT_CONFIG.language` flipped `'zh'` → `'en'`. **No runtime `t(key)` helper was introduced** — UI is now English-hardcoded; `config.language` only controls AI output language (see §7). `src/core/danger.ts` stays bilingual via `message_zh`/`message_en`.
 - **Context awareness** (`f5ed4c6`): every AI call now injects PWD, project markers (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `docker-compose.yml`, `Dockerfile`, `Makefile`), git branch/dirty/upstream/recent 3 commits, and last N lines of sanitized shell history. Sanitizer strips tokens, bearer values, AWS keys, OpenAI/Anthropic keys, URL credentials, `*_TOKEN=` / `*_KEY=` / `*_SECRET=` env-style assignments. Config: `context.enable` (bool), `context.history_lines` (int, default 5).
@@ -207,7 +212,7 @@ One deliberate bilingual holdout: `src/core/danger.ts` keeps `message_zh` + `mes
 
 ### PowerShell 5.1 stderr is a three-way trap
 
-Inline mode exercised on PS 5.1 (Chinese Windows) hit three stacked problems simultaneously. Any future work that has `wts` write to stderr and be consumed by a PS 5.1 wrapper script will re-hit these. Relevant commit: `e9ba215` (see §3).
+Inline mode exercised on PS 5.1 (Chinese Windows) hit three stacked problems simultaneously. Any future work that has `wts` write to stderr and be consumed by a PS 5.1 wrapper script will re-hit these. Relevant commit: `3a2f1be` (see §3).
 
 1. **Encoding**: PS 5.1's default `[Console]::OutputEncoding` is the system ANSI code page (CP936 on zh-CN Windows). Node writes UTF-8 → PS decodes as CP936 → mojibake. PS 7 defaults to UTF-8 and doesn't hit this.
 2. **`NativeCommandError` wrapping**: PS 5.1 produces a `NativeCommandError` ErrorRecord *whenever* a native command writes to stderr — even with a non-zero exit, even with `2>$file` redirecting to a file. The user sees a PS error stack ("所在位置 wts.ps1:24 字符: 5") piled on top of our actual message. Only `2>&1` (merging stderr into the success stream) then splitting by ErrorRecord type in the pipeline avoids triggering this.
