@@ -87,15 +87,15 @@ $ wts shell-init zsh
 eval "$(wts shell-init zsh)"
 ```
 
-集成后，在 zsh / bash 里按 `Ctrl+G`：
+集成后，按 `Ctrl+G`：
 
 1. 弹出 mini prompt 让你用自然语言描述意图
 2. wts 读取当前命令行 buffer + 采集上下文 → 调 AI 生成新命令
 3. 新命令**填回命令行但不执行**；按回车才跑，按 ESC 恢复原 buffer
 
 **关键行为：**
-- 仅支持 `zsh` 与 `bash`（fish / pwsh 推迟到 v0.3）
-- 采用 `eval "$(wts shell-init <shell>)"` 方案，不修改 rc 文件、无需 install / uninstall
+- 支持 `zsh`、`bash`、`fish`、`powershell`（PSReadLine）
+- 装配方式因 shell 而异：zsh / bash 走 `eval "$(wts shell-init <shell>)"`，fish 写入 `~/.config/fish/conf.d/wts.fish`，PowerShell 追加到 `$PROFILE`
 - AI 响应 > 1s 时显示 spinner；按 ESC 随时取消并还原原 buffer
 - 危险命令不直接填回 buffer，改为在上方打印警告并保留原 buffer
 
@@ -141,6 +141,11 @@ $ wts config list                             # 查看所有配置
 | `qwen` | 通义千问 (阿里云) | qwen-plus |
 | `deepseek` | DeepSeek | deepseek-chat |
 | `kimi` | Moonshot KIMI | moonshot-v1-8k |
+| `zhipu` | 智谱 GLM | glm-4-flash |
+| `baichuan` | 百川 | Baichuan4 |
+| `yi` | 零一万物 Yi | yi-large |
+| `minimax` | MiniMax | MiniMax-Text-01 |
+| `siliconflow` | SiliconFlow（聚合） | deepseek-ai/DeepSeek-V3 |
 
 也支持任意 OpenAI 兼容 API，通过 `base_url` + `api_key` + `model` 自定义配置。
 
@@ -199,7 +204,8 @@ wts/
 │   │   ├── generate.ts             # generate 命令（含 --inline 模式）
 │   │   ├── explain.ts              # explain 命令
 │   │   ├── ask.ts                  # ask 命令
-│   │   └── shellInit.ts            # shell-init 命令 (v0.2)
+│   │   ├── shellInit.ts            # shell-init 命令 (v0.2)
+│   │   └── init.ts                 # 首次运行向导 (v0.2)
 │   ├── core/
 │   │   ├── ai.ts                   # AI API 调用封装（OpenAI 兼容 + Anthropic）
 │   │   ├── prompt.ts               # Prompt 模板管理（含 ctx 注入）
@@ -210,7 +216,9 @@ wts/
 │   │   └── shell/                  # Shell 集成脚本模板 (v0.2)
 │   │       ├── index.ts            # renderInitScript(shell) 统一入口
 │   │       ├── zsh.ts              # zsh 模板
-│   │       └── bash.ts             # bash 模板
+│   │       ├── bash.ts             # bash 模板
+│   │       ├── fish.ts             # fish 模板
+│   │       └── powershell.ts       # PowerShell / PSReadLine 模板
 │   ├── utils/
 │   │   ├── config.ts               # 配置读写 + 提供商预设
 │   │   ├── history.ts              # 历史记录
@@ -257,6 +265,5 @@ npx whattheshell generate "..."
 | 阶段 | 内容 | 状态 |
 |------|------|------|
 | **v0.1** | `generate` + `explain` + `ask` 核心功能，配置管理，多模型支持，危险检测，历史记录 | ✅ 已完成 |
-| **v0.2** | `Ctrl+G` 行内触发（zsh/bash 集成）、上下文感知 prompt 注入 | 🚧 开发中 |
-| **v0.3+** | 失败命令 debug hook、fish/pwsh 支持、UI 升级与更多功能 | 待规划 |
+| **v0.2** | `Ctrl+G` 四 shell 行内触发（zsh / bash / fish / powershell）、上下文感知 prompt 注入、`wts init` 首次运行向导、Windows 危险命令规则、CLI 英文化、10 家提供商预设 | ✅ 已发布 2026-04-21 |
 

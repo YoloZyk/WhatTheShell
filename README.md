@@ -4,7 +4,7 @@
 
 `wts` lets you describe what you want in plain English (or Chinese), press a shortcut, and get a working shell command filled back into your prompt — without leaving the terminal or opening a browser tab to ask an LLM.
 
-**Current version:** `v0.2.0` (in development). See the [Changelog](#changelog).
+**Current version:** `v0.2.0`. See the [Changelog](#changelog).
 
 ---
 
@@ -46,32 +46,31 @@ Requires **Node.js ≥ 18**.
 
 ```bash
 npm install -g whattheshell
+wts init
 ```
 
-Configure a provider (DeepSeek shown; see [Providers](#providers) for the full list):
+`wts init` is a one-minute wizard that walks you through provider choice, API-key setup (with a live connectivity test), and optional shell integration. If you skip it, the wizard auto-launches the first time you run `generate` / `explain` / `ask` without a configured key.
 
-```bash
-wts config set-provider deepseek
-wts config set api_key <your-api-key>
-```
+Prefer manual configuration? See [Providers](#providers) and [Configuration](#configuration).
 
 ---
 
 ## Quick start
 
+After `wts init` — or once an API key is configured and the shell integration is installed:
+
 ```bash
-# 1. generate a command from a description
+# generate a command from a description
 wts generate "find all files over 100 MB, sorted by size"
 
-# 2. explain something you don't understand
+# explain something you don't understand
 wts explain "awk '{sum += \$5} END {print sum}' access.log"
 
-# 3. ask a free-form question
+# ask a free-form question
 wts ask "what's the difference between zsh and bash for daily use?"
-
-# 4. install the shell integration to get Ctrl+G inside your prompt
-echo 'eval "$(wts shell-init zsh)"' >> ~/.zshrc && source ~/.zshrc
 ```
+
+Or press **`Ctrl+G`** anywhere on the command line to rewrite the current buffer with AI.
 
 ---
 
@@ -97,7 +96,7 @@ Behavior:
 - **Fill, don't execute.** You can still edit the command before running it.
 - **Dangerous commands are refused inline.** If the model returns `rm -rf /` or similar, the buffer is left untouched and a warning is printed above the prompt.
 - **Failures restore your input.** If the API call fails, the original buffer is put back verbatim.
-- Supported shells: **zsh**, **bash**. `fish` and PowerShell are planned for v0.3.
+- Supported shells: **zsh**, **bash**, **fish**, **PowerShell**.
 
 See [Shell integration](#shell-integration) for installation details.
 
@@ -158,7 +157,7 @@ Alias: `wts a`.
 
 ## Shell integration
 
-One-shot install — no manual rc-file editing needed.
+The fastest path is `wts init` — it detects your current shell and offers to install the integration for you. If you prefer to do it yourself:
 
 ```bash
 # zsh
@@ -166,18 +165,25 @@ echo 'eval "$(wts shell-init zsh)"' >> ~/.zshrc && source ~/.zshrc
 
 # bash
 echo 'eval "$(wts shell-init bash)"' >> ~/.bashrc && source ~/.bashrc
+
+# fish
+wts shell-init fish > ~/.config/fish/conf.d/wts.fish && exec fish
+
+# PowerShell
+wts shell-init powershell | Out-String | Add-Content -Path $PROFILE
+# then reopen PowerShell, or run: . $PROFILE
 ```
 
 What this does:
 
-- Defines a ZLE widget (zsh) or readline binding (bash) on `Ctrl+G`.
-- The widget reads your intent, calls `wts generate --inline` with the current buffer and `$HISTFILE`, and replaces the buffer with the returned command.
+- Binds `Ctrl+G` as a ZLE widget (zsh), readline binding (bash), `commandline` function (fish), or `PSReadLine` key handler (PowerShell).
+- The handler reads your intent, calls `wts generate --inline` with the current buffer, active shell, and `$HISTFILE`, and replaces the buffer with the returned command.
 - On error, the original buffer is restored and stderr is shown above the prompt.
 
 Inspect the script before sourcing it:
 
 ```bash
-wts shell-init zsh    # or bash — prints the script to stdout
+wts shell-init zsh    # or bash / fish / powershell — prints the script to stdout
 ```
 
 ---
@@ -256,7 +262,7 @@ Config lives at `~/.wts/config.toml`.
 | `provider` | `openai`, `anthropic` | `openai` |
 | `base_url` | Custom API endpoint | *(provider default)* |
 | `model` | Model name | `gpt-4o` |
-| `language` | `zh`, `en` — output language | `zh` |
+| `language` | `zh`, `en` — AI reply language | `en` |
 | `shell` | `bash`, `zsh`, `powershell`, `fish` | `bash` |
 | `history_limit` | Local history entries to keep | `100` |
 | `context.enable` | Collect context before each call | `true` |
@@ -293,18 +299,21 @@ wts history --clear  # wipe the log
 
 ## Changelog
 
-### v0.2.0 (in development)
+### v0.2.0 — 2026-04-21
 
-Goal: turn `wts` from "yet another CLI prompt box" into something genuinely embedded in the shell workflow.
+Turns `wts` from "yet another CLI prompt box" into something genuinely embedded in the shell workflow.
 
-- **`Ctrl+G` in-line trigger** — one-line install via `wts shell-init {zsh,bash}`; replaces the buffer but never auto-executes; dangerous commands are refused and the original buffer is preserved.
-- **Context awareness** — `generate` / `explain` / `ask` all inject PWD, project markers, git state, and recent history into the prompt.
-- **Privacy sanitizer** — strips tokens, bearer values, OpenAI/Anthropic/AWS keys, URL credentials, and `*_TOKEN=`/`*_KEY=`/`*_SECRET=` env-style assignments before upload.
-- **`wts generate --inline`** — clean stdout, no UI, no history write — designed for shell integration scripts.
-- **`context.enable` / `context.history_lines` config keys** — tune or disable context at any time.
-- **`wts config list`** now shows the current context-collection state.
-
-Deferred to v0.3+: fish / PowerShell integration, a `Ctrl+H` "debug last failing command" hook, TUI rewrite, multi-turn conversations, and local models (Ollama).
+- **`Ctrl+G` in-line trigger across four shells** — one-line install via `wts shell-init {zsh,bash,fish,powershell}`; rewrites the current buffer with an AI-generated command but never auto-executes; dangerous commands are refused and the original buffer is preserved.
+- **`wts init` first-run wizard** — interactive provider + API-key + shell-integration setup with a live connectivity test; auto-launches when `generate` / `explain` / `ask` is invoked without a configured key.
+- **Context awareness** — every AI call injects PWD, project markers (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `Dockerfile`, …), current git state, and recent shell history into the prompt.
+- **Privacy sanitizer** — strips tokens, bearer values, OpenAI / Anthropic / AWS keys, URL credentials, and `*_TOKEN=` / `*_KEY=` / `*_SECRET=` env-style assignments before anything reaches the model.
+- **Windows-aware danger rules** — 13 new patterns including `Remove-Item -Recurse -Force`, `Format-Volume`, `Clear-Disk`, `diskpart`, `del /s /q`, `Stop-Computer`, `Set-ExecutionPolicy Unrestricted`, and `iwr | iex`.
+- **English CLI** — menus, prompts, errors, and help text are now English by default; `config.language` controls only the AI's reply language.
+- **Per-shell prompt style hints** — generated commands follow the syntax of the active shell (PowerShell cmdlets, bash pipes, fish syntax, zsh globs).
+- **TTY-aware `shell-init`** — emits the script when piped into `eval`, prints a human-readable install hint when run interactively.
+- **`wts generate --inline`** — clean stdout, no UI, no history write — designed for shell-integration scripts and other automation.
+- **`wts config list` health checks** — flags missing API key, unreachable base URL, and current context-collection state.
+- **`context.enable` / `context.history_lines` config keys** — tune or disable context injection at any time.
 
 ### v0.1.1
 

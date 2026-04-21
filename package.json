@@ -1,6 +1,6 @@
 {
   "name": "whattheshell",
-  "version": "0.2.0-dev.0",
+  "version": "0.2.0",
   "description": "AI-powered shell command generator and explainer",
   "main": "dist/index.js",
   "bin": {
@@ -22,8 +22,19 @@
     "generator",
     "explainer"
   ],
-  "author": "",
+  "author": "yolozyk <ykzhang@mail.ustc.edu.cn>",
   "license": "MIT",
+  "homepage": "https://github.com/YoloZyk/WhatTheShell#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YoloZyk/WhatTheShell.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YoloZyk/WhatTheShell/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "type": "commonjs",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
