@@ -47,6 +47,7 @@ The user explicitly asked for these two to happen **before** diving into Phase 2
 All commits are on `main`. Not pushed to `origin` yet — the user said "只提交，不 push" at the start of the v0.2 work; that still holds unless told otherwise.
 
 ```
+96f5bcd fix(prompt): bias Ctrl+G to keep the user's typed tool/prefix  (Phase 1 followup)
 3a2f1be fix(powershell): force UTF-8 and split stderr in PSReadLine widget  (Phase 1 followup)
 cbe6001 feat: i18n all user-facing CLI strings to English           (Phase 2.4)
 4cf9edd docs: add HANDOFF.md for session continuity
@@ -66,6 +67,7 @@ f5ed4c6 feat: inject PWD/git/history context into AI prompts
 
 Narrative (Phase 1 highlights plus Phase 2 progress):
 
+- **Ctrl+G buffer-prefix bias** (`96f5bcd`): reported case — typing `nvidia` + Ctrl+G + "查看显卡状态" on PowerShell returned `Get-WmiObject -Class Win32_VideoController ...` instead of `nvidia-smi`. `withBufferContext` in `src/commands/generate.ts` now detects single-line-ASCII buffers as "partial command, strong constraint" (with three concrete examples: nvidia → nvidia-smi, git → git log, docker → docker ps), and only treats multi-line / non-ASCII input as loose natural-language hints. The main generate prompt (`src/core/prompt.ts`) is untouched — the fix is scoped to the inline-buffer path.
 - **PS 5.1 stderr fix** (`3a2f1be`): Ctrl+G widget on PS 5.1 Chinese Windows showed mojibake + a `NativeCommandError` stack whenever `wts --inline` exited on stderr (e.g. refused `rm -rf temp`). Root cause was three layered PS 5.1 quirks — see §7 "PowerShell 5.1 stderr is a three-way trap" for the full write-up. Widget now saves/restores `[Console]::OutputEncoding` + `$ErrorActionPreference`, flips to UTF-8-no-BOM + `Continue`, and uses `2>&1 | ForEach-Object` ErrorRecord-vs-string splitting instead of temp files. `runInlineMode` also pins its stderr language to `'en'` as defense in depth.
 
 - **i18n to English** (`cbe6001`, Phase 2.4): all menus, prompts, errors, spinner text, help descriptions, `wts init` wizard copy, `shell-init` TTY hint, and `listConfig` health labels translated to English. `DEFAULT_CONFIG.language` flipped `'zh'` → `'en'`. **No runtime `t(key)` helper was introduced** — UI is now English-hardcoded; `config.language` only controls AI output language (see §7). `src/core/danger.ts` stays bilingual via `message_zh`/`message_en`.
