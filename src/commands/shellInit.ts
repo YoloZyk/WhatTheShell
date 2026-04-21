@@ -2,19 +2,21 @@ import { renderInitScript, isSupportedShell, SUPPORTED_SHELLS } from '../integra
 import { detectShell } from '../core/shell';
 
 /**
- * 打印指定 shell 的集成脚本到 stdout。
- * 用户用 `eval "$(wts shell-init zsh)"` 一行装配，避免改 rc 文件。
+ * Prints the integration script for the given shell to stdout.
+ * Users pipe it into `eval` to install for the current session;
+ * `wts init` appends it to the shell's rc file for permanent use.
  *
- * 若 stdout 是 TTY（交互 shell 里直接跑），额外在 stderr 打一条使用提示，
- * 避免新用户误以为一屏脚本是报错。
+ * If stdout is a TTY (user ran the command directly in an interactive
+ * shell), we also print a friendly hint to stderr so newcomers don't
+ * mistake the script dump for an error.
  */
 export function shellInitCommand(shellArg?: string): void {
   const shell = (shellArg || detectShell() || 'bash').toLowerCase();
 
   if (!isSupportedShell(shell)) {
     process.stderr.write(
-      `wts shell-init: 不支持的 shell "${shell}"\n` +
-      `  当前支持: ${SUPPORTED_SHELLS.join(', ')}\n`
+      `wts shell-init: unsupported shell "${shell}"\n` +
+      `  Supported: ${SUPPORTED_SHELLS.join(', ')}\n`
     );
     process.exitCode = 2;
     return;
@@ -22,11 +24,11 @@ export function shellInitCommand(shellArg?: string): void {
 
   if (process.stdout.isTTY) {
     process.stderr.write(
-      `wts shell-init: 这条命令会把集成脚本打印到 stdout 给 shell 吃，不是给你看的。\n` +
+      `wts shell-init: this prints the integration script to stdout for your shell to eval — it's not meant to be read by you.\n` +
       `\n` +
       renderInstallHint(shell) +
       `\n` +
-      `  下面这坨是脚本正文，仅供好奇：\n` +
+      `  The script below follows, for the curious:\n` +
       `\n`
     );
   }
@@ -37,31 +39,31 @@ export function shellInitCommand(shellArg?: string): void {
 function renderInstallHint(shell: string): string {
   if (shell === 'zsh' || shell === 'bash') {
     return (
-      `  当前会话启用：\n` +
+      `  Activate in current session:\n` +
       `    eval "$(wts shell-init ${shell})"\n` +
       `\n` +
-      `  永久安装：\n` +
+      `  Install permanently:\n` +
       `    echo 'eval "$(wts shell-init ${shell})"' >> ~/.${shell}rc\n`
     );
   }
   if (shell === 'fish') {
     return (
-      `  当前会话启用：\n` +
+      `  Activate in current session:\n` +
       `    wts shell-init fish | source\n` +
       `\n` +
-      `  永久安装：\n` +
+      `  Install permanently:\n` +
       `    wts shell-init fish > ~/.config/fish/conf.d/wts.fish\n`
     );
   }
   if (shell === 'powershell') {
     return (
-      `  当前会话启用：\n` +
+      `  Activate in current session:\n` +
       `    wts shell-init powershell | Out-String | Invoke-Expression\n` +
       `\n` +
-      `  永久安装：\n` +
+      `  Install permanently:\n` +
       `    wts shell-init powershell | Out-String | Add-Content -Path $PROFILE\n` +
-      `    # 然后新开一个 PowerShell 窗口，或 . $PROFILE 重新加载\n`
+      `    # then open a new PowerShell window, or run: . $PROFILE\n`
     );
   }
-  return '  把上面那行 eval 追加到你的 shell 配置文件\n';
+  return '  Append the eval line to your shell config\n';
 }

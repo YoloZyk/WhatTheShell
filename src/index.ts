@@ -13,100 +13,100 @@ const program = new Command();
 
 program
   .name('wts')
-  .description('WhatTheShell — AI 驱动的终端命令生成与解释工具')
+  .description('WhatTheShell — AI-powered shell command generator, explainer, and in-line assistant')
   .version('0.2.0');
 
-// generate 命令
+// generate
 program
   .command('generate <description>')
   .alias('g')
-  .description('用自然语言描述生成 Shell 命令')
-  .option('-r, --run', '生成后直接执行（仅限安全命令）')
-  .option('-c, --copy', '将结果复制到剪贴板')
-  .option('-s, --shell <shell>', '指定目标 Shell (bash/zsh/powershell/fish)')
-  .option('--inline', '行内模式：stdout 输出纯净命令，不走 UI（供 shell 集成脚本调用）')
-  .option('--buffer <buffer>', '当前命令行 buffer（由 shell 集成脚本传入）')
-  .option('--history-file <path>', '外部 shell history 文件路径（由 shell 集成脚本传入）')
+  .description('Generate a shell command from a natural-language description')
+  .option('-r, --run', 'Run the command right after generating (safe commands only)')
+  .option('-c, --copy', 'Copy the result to the clipboard')
+  .option('-s, --shell <shell>', 'Target shell syntax (bash/zsh/powershell/fish)')
+  .option('--inline', 'Inline mode: emit the bare command to stdout with no UI (used by shell integration scripts)')
+  .option('--buffer <buffer>', 'Current shell command-line buffer (passed in by the shell integration)')
+  .option('--history-file <path>', 'External shell history file path (passed in by the shell integration)')
   .action(async (description: string, options) => {
     await generateCommand(description, options);
   });
 
-// explain 命令
+// explain
 program
   .command('explain <command>')
   .alias('e')
-  .description('解释一条 Shell 命令')
-  .option('-b, --brief', '一句话简要说明')
-  .option('-d, --detail', '详细解释')
+  .description('Explain an existing shell command')
+  .option('-b, --brief', 'One-sentence summary')
+  .option('-d, --detail', 'Full breakdown including side effects and gotchas')
   .action(async (command: string, options) => {
     await explainCommand(command, options);
   });
 
-// ask 命令
+// ask
 program
   .command('ask <question>')
   .alias('a')
-  .description('关于终端/Shell 的自由问答')
+  .description('Free-form Q&A about shells, terminals, and command-line tooling')
   .action(async (question: string) => {
     await askCommand(question);
   });
 
-// init 命令：首次配置向导
+// init (interactive setup wizard)
 program
   .command('init')
-  .description('交互式配置向导 (provider 选择 + API Key 测试 + shell 集成安装)')
+  .description('Interactive setup wizard (pick provider, test API key, install shell integration)')
   .action(async () => {
     await initCommand();
   });
 
-// shell-init 命令：打印 shell 集成脚本到 stdout
+// shell-init (emit integration script)
 program
   .command('shell-init [shell]')
-  .description('打印 shell 集成脚本（支持 zsh / bash / fish / powershell）。用法: eval "$(wts shell-init zsh)"')
+  .description('Emit the shell integration script (supports zsh / bash / fish / powershell). Usage: eval "$(wts shell-init zsh)"')
   .action((shell?: string) => {
     shellInitCommand(shell);
   });
 
-// config 命令
+// config
 const configCmd = program
   .command('config')
-  .description('管理配置');
+  .description('Manage wts configuration');
 
 configCmd
   .command('set <key> <value>')
-  .description('设置配置项 (api_key, model, language, shell, provider, base_url, context.enable, context.history_lines)')
+  .description('Set a config key (api_key, model, language, shell, provider, base_url, context.enable, context.history_lines)')
   .action((key: string, value: string) => {
     setConfigValue(key, value);
   });
 
 configCmd
   .command('set-provider <name>')
-  .description(`切换 AI 提供商预设 (${Object.keys(PROVIDER_PRESETS).join(', ')})`)
+  .description(`Switch to a provider preset (${Object.keys(PROVIDER_PRESETS).join(', ')})`)
   .action((name: string) => {
     applyPreset(name);
   });
 
 configCmd
   .command('list')
-  .description('查看所有配置')
+  .description('Show the full config and a health-check summary')
   .action(() => {
     listConfig();
   });
 
-// history 命令
+// history
 program
   .command('history')
-  .description('查看历史记录')
-  .option('--clear', '清除所有历史记录')
+  .description('Show recent wts history')
+  .option('--clear', 'Wipe the local history log')
   .action(async (options) => {
     if (options.clear) {
       clearHistory();
       const { displaySuccess } = await import('./utils/display');
-      await displaySuccess('历史记录已清除');
+      await displaySuccess('History cleared');
     } else {
       const entries = getHistory();
       if (entries.length === 0) {
-        console.log('  暂无历史记录');
+        console.log('  (no history yet)');
       } else {
         const chalk = (await import('chalk')).default;
         console.log();

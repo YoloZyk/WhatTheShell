@@ -19,7 +19,7 @@ export class AIClient {
   /** 调用 AI 获取原始文本回复 */
   private async chat(prompt: string): Promise<string> {
     if (!this.apiKey) {
-      throw new Error('API Key 未设置，请先运行: wts config set api_key <your-key>');
+      throw new Error('API key not set — run `wts init`, or `wts config set api_key <your-key>`');
     }
 
     if (this.provider === 'anthropic') {

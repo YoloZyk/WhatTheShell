@@ -17,27 +17,27 @@ export async function explainCommand(command: string, options: ExplainOptions): 
     ? collectContext({ historyLines: config.context_history_lines })
     : undefined;
 
-  const spinner = await startSpinner('正在解析命令...');
+  const spinner = await startSpinner('Parsing command...');
 
   try {
     const result = await client.explain(command, level, config.language, ctx);
     spinner.stop();
 
-    // 本地规则兜底检测
+    // local-rule fallback check
     const localCheck = checkDanger(command, config.language);
     const finalRisk = localCheck.risk === 'danger' ? 'danger'
       : (localCheck.risk === 'warning' && result.risk === 'safe') ? 'warning'
       : result.risk;
     const finalWarning = localCheck.warnings.length > 0
-      ? localCheck.warnings.join('；')
+      ? localCheck.warnings.join('; ')
       : result.warning;
 
     await displayExplanation(result.segments, result.summary, finalRisk, finalWarning);
 
-    // 记录历史
+    // record history
     addHistory({ type: 'explain', input: command, output: result.summary });
   } catch (err: any) {
     spinner.stop();
-    await displayError(err.message || '解释命令失败');
+    await displayError(err.message || 'Failed to explain command');
   }
 }

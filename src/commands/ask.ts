@@ -13,7 +13,7 @@ export async function askCommand(question: string): Promise<void> {
   const ctx = config.context_enable
     ? collectContext({ historyLines: config.context_history_lines })
     : undefined;
-  const spinner = await startSpinner('正在思考...');
+  const spinner = await startSpinner('Thinking...');
 
   try {
     const answer = await client.ask(question, config.language, ctx);
@@ -21,10 +21,10 @@ export async function askCommand(question: string): Promise<void> {
 
     await displayAnswer(answer);
 
-    // 记录历史
+    // record history
     addHistory({ type: 'ask', input: question, output: answer });
   } catch (err: any) {
     spinner.stop();
-    await displayError(err.message || '回答问题失败');
+    await displayError(err.message || 'Failed to answer question');
   }
 }

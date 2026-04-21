@@ -30,15 +30,15 @@ The canonical plan is at `C:\Users\张云康\.claude\plans\prancy-weaving-melody
 | Phase | Status | What it covers |
 |---|---|---|
 | **Phase 1 — Onboarding & Windows coverage** | ✅ **DONE** | `wts init` wizard, PowerShell + fish integration, Windows danger rules, TTY-aware `shell-init`, per-shell prompt style hints, auto-trigger init on missing API key |
-| **Phase 2 — UX polish** | ⏳ NOT STARTED | `@inquirer/prompts` arrow-key menu replacing the R/C/E/Q single-key, `ask`/`explain` token streaming, Ctrl+G spinner + Esc cancel, i18n for all UI strings, friendlier default help |
+| **Phase 2 — UX polish** | ◻◻ PARTIAL (i18n done, rest not started) | `@inquirer/prompts` arrow-key menu replacing the R/C/E/Q single-key, `ask`/`explain` token streaming, Ctrl+G spinner + Esc cancel, ✅ i18n UI strings to English, friendlier default help |
 | **Phase 3 — Depth features** | ⏳ NOT STARTED | `wts doctor`, history search/replay, multi-turn (`ask --continue`), retry/timeout in `chat()`, update-check notifier |
 
 ### Immediately queued before Phase 2 starts
 
 The user explicitly asked for these two to happen **before** diving into Phase 2 proper:
 
-1. **i18n all user-facing strings to English.** Currently most prompts, errors, confirmations, spinner text are Chinese — limits global adoption. This is listed in Phase 2's 2.4 in the plan but the user wants it done as its own focused pass. Details in §6 below.
-2. **(this doc itself)** Session-handoff document so context loss between sessions doesn't cost us progress. ✅ You're reading it.
+1. ✅ **i18n all user-facing strings to English.** Done (see §6 for what was in scope and what was deliberately left). UI default is now English; AI output language still follows `config.language`.
+2. ✅ **(this doc itself)** Session-handoff document. You're reading it.
 
 ---
 
@@ -136,39 +136,41 @@ Then:
 
 ---
 
-## 6. Immediate next task — i18n UI strings to English
+## 6. Immediate next task — pick one Phase 2 subtask
 
-**Scope**: translate all user-facing Chinese text in the CLI to English. AI-output language still driven by `config.language` — that's untouched. What changes:
+i18n is done (UI is now English-hardcoded; see §7). Phase 2 has four remaining subtasks. Recommended order and sizing:
 
-- Menu labels, prompts, errors, spinner text
-- `wts init` wizard copy
-- Help descriptions in `src/index.ts` (currently mostly Chinese)
-- Config validation error messages
-- TTY hint in `shellInit.ts`
-- listConfig health check labels
+### 6.1 Arrow-key menu replacing R/C/E/Q (recommended starting point)
 
-**Approach options (pick when starting)**:
+**Why first**: smallest surface area, highest-visibility UX win, reuses the `@inquirer/prompts` machinery already wired up in `src/commands/init.ts` via `loadPrompts()`. Keeps momentum on the "UI polish" arc we just finished i18n on.
 
-1. **Straight rewrite**: hardcode English everywhere, delete Chinese.  Simplest, moves us to English-default. Loses the Chinese UX for the (Chinese-speaking) author as a side effect.
-2. **Full i18n with `t(key)` helper** (Phase 2.4 in the plan): introduce `src/utils/i18n.ts` with `zh` + `en` tables, pick at runtime based on `config.language`. Keeps Chinese available for the author, adds English for everyone else. **Slightly more work, but strictly better outcome — strongly recommended.**
+**Files**: mostly `src/commands/generate.ts` — replace `interactiveConfirm()`'s `readKey()` + switch-case with a `prompts.select()` call. Danger case prunes `Run`. Likely ~40 lines of diff, one commit.
 
-Expect option 2 to take ~2-3 hours: define the helper, enumerate every hardcoded string (probably 60-80 of them), write both locales, swap call sites. Budget for a single focused commit.
+**Watch out for**: `prompts.select` doesn't return on Ctrl+C — it throws `ExitPromptError`. Wrap in try/catch mirroring `init.ts` to treat as "Quit".
 
-**Files with the most Chinese strings**:
+### 6.2 `ask` / `explain` token streaming
 
-- `src/commands/init.ts` (new, heaviest — all wizard copy)
-- `src/commands/generate.ts` (menu labels, cancel messages, danger warnings in inline mode)
-- `src/commands/shellInit.ts` (TTY hint is multi-paragraph Chinese)
-- `src/utils/display.ts` (spinner text, '摘要:', ' ⚠ DANGER ' / ' ⚠ CAUTION ' labels, '✓'/'✗')
-- `src/utils/config.ts` (listConfig labels: 'API Key: 已设置', '未安装', etc.; validation error messages)
-- `src/core/danger.ts` — **already bilingual** via `message_zh` / `message_en`, but the current code always passes `language='zh'` from callers. Check call sites. 
-- `src/index.ts` (program description, every `.description()` call is Chinese)
+**Why**: these two commands feel the slowest because output only appears after the full AI response arrives. Streaming cuts perceived latency dramatically.
 
-**Not in scope for this pass**: 
-- AI prompts (stay English-in, user-lang-out via `config.language`)
-- Chinese comments in source code (those are developer-facing, keep as-is unless they're inside emitted shell scripts — see §7 encoding traps)
+**Files**: `src/core/ai.ts` (add a `chatStream()` alongside `chat()`), `src/commands/ask.ts` and `src/commands/explain.ts` (consume the stream, print as it arrives). `explain` is trickier — it returns structured segments, so either stream raw then re-parse at end, or keep `explain` non-streaming and only stream `ask`.
 
-**Verification**: for each CLI surface (help, generate, explain, ask, init, shell-init, config list/set, history), run it with `config.language=en` and confirm everything is English.  Then switch to `config.language=zh` and make sure Chinese still renders (if doing option 2). Also smoke-test that no string got lost (empty menu option, blank spinner, etc.).
+**Watch out for**: spinner has to stop on the first token, not after the whole response. Markdown rendering (if we want pretty output) becomes harder when streaming. Initial pass: stream raw text for `ask`, leave `explain` alone.
+
+### 6.3 Ctrl+G spinner + Esc-cancel
+
+**Why**: inline mode currently hangs silently until AI responds. A spinner or hint in the shell (not in the CLI itself — stdout is reserved for the command) would help, but the real win is Esc-to-cancel.
+
+**Files**: integration scripts in `src/integrations/shell/*.ts` — they'd need to wrap the `wts generate --inline` call so that a keypress during the wait kills the child process. Non-trivial cross-shell: zsh/bash can do it with a background job + `read -t`, PowerShell needs `[Console]::KeyAvailable`. Skip for now unless user asks.
+
+### 6.4 Friendlier default help
+
+**Why**: running `wts` with no args currently just prints commander's default help dump. Could show a 3-line "here's what this does / try these three commands" splash.
+
+**Files**: `src/index.ts` — `.addHelpText('before', ...)` or a top-level `.action()` that prints a curated intro then falls through to `--help`. Small diff, small impact. Good "last 30 minutes of a session" task.
+
+---
+
+Pick 6.1 unless there's a reason not to. Each is a standalone commit.
 
 ---
 
@@ -191,6 +193,12 @@ Always `process.exitCode = n; return` inside Commander action handlers. Direct e
 ### `@inquirer/prompts` is ESM-only
 
 We're `"type": "commonjs"` so it MUST be loaded via `await import('@inquirer/prompts')`, not `import { ... } from '@inquirer/prompts'`. Pattern is already set in `src/commands/init.ts` via `loadPrompts()`.
+
+### UI strings are English-only — `config.language` only controls AI output
+
+The i18n pass hardcoded all user-facing CLI strings to English (menus, prompts, errors, spinner text, help). There is **no runtime `t(key)` helper**; `config.language` (`zh` / `en`) now only influences the language the AI *replies in*. `DEFAULT_CONFIG.language` is now `'en'`. If we ever want a Chinese UI back, Phase 2 would need a real i18n layer — that's not currently planned.
+
+One deliberate bilingual holdout: `src/core/danger.ts` keeps `message_zh` + `message_en` per rule, and callers pass `config.language` so danger warnings still localize with the AI output.
 
 ### CRLF warnings everywhere
 

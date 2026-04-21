@@ -70,7 +70,7 @@ export async function displayExplanation(
   }
 
   if (summary) {
-    console.log('  ' + chalk.dim('摘要: ') + summary);
+    console.log('  ' + chalk.dim('Summary: ') + summary);
     console.log();
   }
 }

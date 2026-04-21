@@ -8,16 +8,17 @@ import { detectShell } from '../core/shell';
 import { renderInitScript, isSupportedShell, SUPPORTED_SHELLS } from '../integrations/shell';
 
 /**
- * 交互式首次配置向导。
- * 走完四步：provider 选择 → API Key（带连通性测试）→ shell 集成安装 → 示例。
- * 每一步都允许用户 Ctrl+C 中途退出；已经写入的配置保留。
+ * Interactive first-run setup wizard.
+ * Four steps: provider select → API key (with live connectivity test) →
+ * shell integration install → examples. Ctrl+C at any step exits cleanly;
+ * whatever config has already been written is preserved.
  */
 export async function initCommand(): Promise<void> {
   const prompts = await loadPrompts();
 
   console.log();
-  console.log('  WhatTheShell 首次配置向导');
-  console.log('  按 Ctrl+C 随时退出；已设置的配置会保留');
+  console.log('  WhatTheShell setup wizard');
+  console.log('  Press Ctrl+C at any time to abort; already-saved settings are kept');
   console.log();
 
   try {
@@ -28,29 +29,29 @@ export async function initCommand(): Promise<void> {
     }));
 
     const providerKey = await prompts.select({
-      message: '选择 AI 提供商：',
+      message: 'Choose an AI provider:',
       choices: providerChoices,
     });
     applyPreset(providerKey);
 
-    // ---------- Step 2: API Key + 连通性测试 ----------
+    // ---------- Step 2: API key + connectivity test ----------
     const preset = PROVIDER_PRESETS[providerKey];
     let apiKey = '';
     let keyValidated = false;
 
     while (!keyValidated) {
       apiKey = (await prompts.password({
-        message: `粘贴 ${preset.label} 的 API Key：`,
+        message: `Paste your ${preset.label} API key:`,
         mask: '*',
       })).trim();
 
       if (!apiKey) {
-        console.log('  ✗ API Key 不能为空');
+        console.log('  ✗ API key cannot be empty');
         continue;
       }
       setConfigValue('api_key', apiKey);
 
-      process.stdout.write('  测试连接...');
+      process.stdout.write('  Testing connection...');
       const test = await testApiKey();
       if (test.ok) {
         console.log(` ✓ (${test.latencyMs}ms)`);
@@ -59,7 +60,7 @@ export async function initCommand(): Promise<void> {
         console.log(' ✗');
         console.log(`    ${test.error}`);
         const retry = await prompts.confirm({
-          message: '重新输入 API Key?（选 No 则保留当前 Key 并继续）',
+          message: 'Re-enter the API key? (No keeps the current key and moves on)',
           default: true,
         });
         if (!retry) {
@@ -68,29 +69,29 @@ export async function initCommand(): Promise<void> {
       }
     }
 
-    // ---------- Step 3: Shell 集成 ----------
+    // ---------- Step 3: Shell integration ----------
     const shell = detectShell();
     if (isSupportedShell(shell)) {
       await maybeInstallShellIntegration(shell, prompts);
     } else {
       console.log();
-      console.log(`  检测到 shell "${shell}"，目前不支持 Ctrl+G 集成（支持: ${SUPPORTED_SHELLS.join(', ')}）`);
+      console.log(`  Detected shell "${shell}" — Ctrl+G integration is not supported (supported: ${SUPPORTED_SHELLS.join(', ')})`);
     }
 
     // ---------- Step 4: Summary ----------
     console.log();
-    console.log('  ✓ 配置完成！试试：');
+    console.log('  ✓ All set. Try it:');
     console.log();
-    console.log('    wts generate "列出当前目录按大小排序"');
+    console.log('    wts generate "list files in current dir by size"');
     console.log('    wts explain  "awk \'{sum+=$5} END {print sum}\' a.log"');
-    console.log('    wts ask      "find 和 fd 的区别"');
-    console.log('    Ctrl+G       在命令行任意位置触发');
+    console.log('    wts ask      "what\'s the difference between find and fd?"');
+    console.log('    Ctrl+G       press anywhere on the command line');
     console.log();
   } catch (err: any) {
-    // Inquirer Ctrl+C 会抛 ExitPromptError
+    // Inquirer throws ExitPromptError on Ctrl+C
     if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
       console.log();
-      console.log('  向导已取消');
+      console.log('  Setup cancelled');
       return;
     }
     throw err;
@@ -98,16 +99,17 @@ export async function initCommand(): Promise<void> {
 }
 
 /**
- * 在需要 API Key 的命令进入前调用；未配置时弹向导，配置了就直接放行。
- * inline 模式（shell 集成脚本调用）不弹交互，直接 stderr + 非 0 退出。
- * 返回 true 表示调用方可以继续；false 表示应中止（用户取消或 inline 模式下未配置）。
+ * Guard run before any command that needs the API key. When missing and
+ * interactive, offer to run the wizard inline; in inline mode (-i) just
+ * point the user at `wts init` on stderr and exit non-zero.
+ * Returns true if the caller can proceed; false to abort.
  */
 export async function ensureApiKey(options: { inline?: boolean }): Promise<boolean> {
   const config = loadConfig();
   if (config.api_key) return true;
 
   if (options.inline) {
-    process.stderr.write('wts: API Key 未设置，运行 `wts init` 配置后再试\n');
+    process.stderr.write('wts: API key not set — run `wts init` first\n');
     process.exitCode = 2;
     return false;
   }
@@ -115,11 +117,11 @@ export async function ensureApiKey(options: { inline?: boolean }): Promise<boole
   const prompts = await loadPrompts();
   try {
     const shouldInit = await prompts.confirm({
-      message: '首次使用，需要先配置 API Key。是否现在开始设置?',
+      message: 'First-time use — set up your API key now?',
       default: true,
     });
     if (!shouldInit) {
-      console.log('  未配置 API Key，退出。之后可随时运行 `wts init`');
+      console.log('  No API key configured; exiting. Run `wts init` whenever you\'re ready.');
       return false;
     }
   } catch {
@@ -148,11 +150,11 @@ async function testApiKey(): Promise<{ ok: boolean; latencyMs?: number; error?: 
     return { ok: true, latencyMs: Date.now() - start };
   } catch (e: any) {
     const msg = String(e?.message || e);
-    if (msg.includes('timeout_8s')) return { ok: false, error: '请求超时（>8s），可能网络受限或 base_url 写错' };
-    if (/401|unauthorized|invalid.*api.*key|authentication/i.test(msg)) return { ok: false, error: 'API Key 被 provider 拒绝（401），核对一下是不是复制错了' };
-    if (/403|forbidden/i.test(msg)) return { ok: false, error: '403 禁止访问（可能区域限制或账户未激活）' };
-    if (/429|rate.?limit/i.test(msg)) return { ok: false, error: '触发频率/额度限制，但 Key 本身看起来有效' };
-    if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET/i.test(msg)) return { ok: false, error: `网络不通: ${msg.split('\n')[0]}` };
+    if (msg.includes('timeout_8s')) return { ok: false, error: 'Request timed out (>8s). Network restricted, or base_url is wrong.' };
+    if (/401|unauthorized|invalid.*api.*key|authentication/i.test(msg)) return { ok: false, error: 'API key rejected (401). Double-check the paste.' };
+    if (/403|forbidden/i.test(msg)) return { ok: false, error: 'Forbidden (403). Possible region restriction or inactive account.' };
+    if (/429|rate.?limit/i.test(msg)) return { ok: false, error: 'Rate-limited or quota exceeded — but the key itself looks valid.' };
+    if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET/i.test(msg)) return { ok: false, error: `Network unreachable: ${msg.split('\n')[0]}` };
     return { ok: false, error: msg.split('\n')[0].slice(0, 160) };
   }
 }
@@ -160,22 +162,22 @@ async function testApiKey(): Promise<{ ok: boolean; latencyMs?: number; error?: 
 async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Promise<void> {
   const home = process.env.HOME || process.env.USERPROFILE || '';
   if (!home) {
-    console.log('  ✗ 无法确定 HOME 目录，跳过 shell 集成');
+    console.log('  ✗ Could not determine HOME directory; skipping shell integration');
     return;
   }
 
   if (isAlreadyInstalled(shell, home)) {
-    console.log(`  ✓ ${shell} 集成已装过，跳过`);
+    console.log(`  ✓ ${shell} integration already installed, skipping`);
     return;
   }
 
   console.log();
   const install = await prompts.confirm({
-    message: `检测到 ${shell}，安装 Ctrl+G 集成?`,
+    message: `Detected ${shell}. Install the Ctrl+G integration?`,
     default: true,
   });
   if (!install) {
-    console.log(`  略过；以后可手动：eval "$(wts shell-init ${shell})"`);
+    console.log(`  Skipped. You can install later with: eval "$(wts shell-init ${shell})"`);
     return;
   }
 
@@ -184,10 +186,10 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
     const line = `eval "$(wts shell-init ${shell})"`;
     try {
       fs.appendFileSync(rc, `\n# WhatTheShell (wts) integration\n${line}\n`);
-      console.log(`  ✓ 已写入 ${rc}`);
-      console.log(`    新开终端生效，或运行：source ${rc}`);
+      console.log(`  ✓ Wrote to ${rc}`);
+      console.log(`    Open a new terminal, or run: source ${rc}`);
     } catch (e: any) {
-      console.log(`  ✗ 写入 ${rc} 失败: ${e.message}`);
+      console.log(`  ✗ Failed to write ${rc}: ${e.message}`);
     }
     return;
   }
@@ -198,10 +200,10 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
     try {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(target, renderInitScript('fish'));
-      console.log(`  ✓ 已写入 ${target}`);
-      console.log(`    打开新的 fish shell 即可生效`);
+      console.log(`  ✓ Wrote to ${target}`);
+      console.log(`    Open a new fish shell to activate`);
     } catch (e: any) {
-      console.log(`  ✗ 写入 ${target} 失败: ${e.message}`);
+      console.log(`  ✗ Failed to write ${target}: ${e.message}`);
     }
     return;
   }
@@ -209,17 +211,17 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
   if (shell === 'powershell') {
     const profilePath = resolvePowerShellProfile();
     if (!profilePath) {
-      console.log('  无法自动定位 $PROFILE，请在 PowerShell 里手动运行：');
+      console.log('  Could not auto-resolve $PROFILE; inside PowerShell run manually:');
       console.log('    wts shell-init powershell | Out-String | Add-Content -Path $PROFILE');
       return;
     }
     try {
       fs.mkdirSync(path.dirname(profilePath), { recursive: true });
       fs.appendFileSync(profilePath, '\n' + renderInitScript('powershell'));
-      console.log(`  ✓ 已写入 ${profilePath}`);
-      console.log(`    打开新的 PowerShell 窗口，或运行：. $PROFILE`);
+      console.log(`  ✓ Wrote to ${profilePath}`);
+      console.log(`    Open a new PowerShell window, or run: . $PROFILE`);
     } catch (e: any) {
-      console.log(`  ✗ 写入 ${profilePath} 失败: ${e.message}`);
+      console.log(`  ✗ Failed to write ${profilePath}: ${e.message}`);
     }
   }
 }
@@ -261,7 +263,7 @@ function resolvePowerShellProfile(): string | undefined {
       }).trim();
       if (out) return out;
     } catch {
-      /* 下一个 candidate */
+      /* try next candidate */
     }
   }
   return undefined;
