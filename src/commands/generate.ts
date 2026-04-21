@@ -7,21 +7,13 @@ import { loadConfig } from '../utils/config';
 import { copyToClipboard } from '../utils/clipboard';
 import { addHistory } from '../utils/history';
 import { displayCommand, displayError, displaySuccess, displayActions, startSpinner } from '../utils/display';
+import { ensureApiKey } from './init';
 import * as readline from 'readline';
 import { exec } from 'child_process';
 
 export async function generateCommand(description: string, options: GenerateOptions): Promise<void> {
+  if (!(await ensureApiKey({ inline: options.inline }))) return;
   const config = loadConfig();
-
-  if (!config.api_key) {
-    if (options.inline) {
-      process.stderr.write('wts: API Key 未设置，运行 `wts config set api_key <key>`\n');
-      process.exitCode = 2;
-      return;
-    }
-    await displayError('API Key 未设置，请先运行: wts config set api_key <your-key>');
-    return;
-  }
 
   const shell: ShellType = options.shell || config.shell || detectShell();
   const client = new AIClient(config.provider, config.api_key, config.model, config.base_url);

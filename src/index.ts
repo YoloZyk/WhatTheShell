@@ -5,6 +5,7 @@ import { generateCommand } from './commands/generate';
 import { explainCommand } from './commands/explain';
 import { askCommand } from './commands/ask';
 import { shellInitCommand } from './commands/shellInit';
+import { initCommand } from './commands/init';
 import { setConfigValue, listConfig, applyPreset, PROVIDER_PRESETS } from './utils/config';
 import { getHistory, clearHistory } from './utils/history';
 
@@ -50,10 +51,18 @@ program
     await askCommand(question);
   });
 
+// init 命令：首次配置向导
+program
+  .command('init')
+  .description('交互式配置向导 (provider 选择 + API Key 测试 + shell 集成安装)')
+  .action(async () => {
+    await initCommand();
+  });
+
 // shell-init 命令：打印 shell 集成脚本到 stdout
 program
   .command('shell-init [shell]')
-  .description('打印 shell 集成脚本（支持 zsh/bash）。用法: eval "$(wts shell-init zsh)"')
+  .description('打印 shell 集成脚本（支持 zsh / bash / fish / powershell）。用法: eval "$(wts shell-init zsh)"')
   .action((shell?: string) => {
     shellInitCommand(shell);
   });

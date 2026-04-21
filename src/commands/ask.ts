@@ -3,14 +3,11 @@ import { collectContext } from '../core/context';
 import { loadConfig } from '../utils/config';
 import { addHistory } from '../utils/history';
 import { displayAnswer, displayError, startSpinner } from '../utils/display';
+import { ensureApiKey } from './init';
 
 export async function askCommand(question: string): Promise<void> {
+  if (!(await ensureApiKey({ inline: false }))) return;
   const config = loadConfig();
-
-  if (!config.api_key) {
-    await displayError('API Key 未设置，请先运行: wts config set api_key <your-key>');
-    return;
-  }
 
   const client = new AIClient(config.provider, config.api_key, config.model, config.base_url);
   const ctx = config.context_enable
