@@ -42,11 +42,13 @@ The user explicitly asked for these two to happen **before** diving into Phase 2
 
 ---
 
-## 3. What Phase 1 delivered (newest commits first)
+## 3. Commit history on v0.2 (newest first)
 
 All commits are on `main`. Not pushed to `origin` yet — the user said "只提交，不 push" at the start of the v0.2 work; that still holds unless told otherwise.
 
 ```
+cbe6001 feat: i18n all user-facing CLI strings to English           (Phase 2.4)
+4cf9edd docs: add HANDOFF.md for session continuity
 e7b3a00 feat: add `wts init` wizard and auto-trigger on missing API key
 0831f8b fix: route --shell through integrations and add per-shell style hints
 4fa70e7 fix(powershell): pure-ASCII single-line registration + ArrayList args
@@ -59,8 +61,9 @@ e5d8405 feat: Phase 1 quick wins — Windows danger rules, TTY-aware shell-init,
 f5ed4c6 feat: inject PWD/git/history context into AI prompts
 ```
 
-Narrative:
+Narrative (Phase 1 highlights plus Phase 2 progress):
 
+- **i18n to English** (`cbe6001`, Phase 2.4): all menus, prompts, errors, spinner text, help descriptions, `wts init` wizard copy, `shell-init` TTY hint, and `listConfig` health labels translated to English. `DEFAULT_CONFIG.language` flipped `'zh'` → `'en'`. **No runtime `t(key)` helper was introduced** — UI is now English-hardcoded; `config.language` only controls AI output language (see §7). `src/core/danger.ts` stays bilingual via `message_zh`/`message_en`.
 - **Context awareness** (`f5ed4c6`): every AI call now injects PWD, project markers (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `docker-compose.yml`, `Dockerfile`, `Makefile`), git branch/dirty/upstream/recent 3 commits, and last N lines of sanitized shell history. Sanitizer strips tokens, bearer values, AWS keys, OpenAI/Anthropic keys, URL credentials, `*_TOKEN=` / `*_KEY=` / `*_SECRET=` env-style assignments. Config: `context.enable` (bool), `context.history_lines` (int, default 5).
 - **Ctrl+G integration** — zsh/bash (`393bf9b`), PowerShell/fish (`1d61fb2`). Each integration script calls `wts generate --inline --shell <name> --buffer <current> --history-file <histfile> -- <intent>`. The CLI writes a single-line command to stdout; shell script replaces buffer without executing. Danger commands refused (exit 3) with original buffer preserved.
 - **Windows danger rules** (`e5d8405`): 13 patterns added to `src/core/danger.ts` covering `Remove-Item -Recurse -Force`, `Format-Volume`, `Clear-Disk`, `diskpart`, `del /s /q`, `rmdir /s`, `format C:`, `Stop-Computer`, `Restart-Computer`, `Set-ExecutionPolicy Unrestricted`, `iwr | iex`, `Get-Process | Stop-Process`.
