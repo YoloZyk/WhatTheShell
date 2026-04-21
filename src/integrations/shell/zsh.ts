@@ -31,7 +31,7 @@ const LINES: string[] = [
   '  tmpout=$(mktemp 2>/dev/null) || { zle reset-prompt; return 1 }',
   '  tmperr=$(mktemp 2>/dev/null) || { rm -f "$tmpout"; zle reset-prompt; return 1 }',
   '',
-  '  command wts generate --inline \\',
+  '  command wts generate --inline --shell zsh \\',
   '    --buffer "$current" \\',
   '    --history-file "${HISTFILE:-}" \\',
   '    -- "$intent" \\',

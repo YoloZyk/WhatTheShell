@@ -28,7 +28,7 @@ const LINES: string[] = [
   '  tmpout=$(mktemp 2>/dev/null) || return 1',
   '  tmperr=$(mktemp 2>/dev/null) || { rm -f "$tmpout"; return 1; }',
   '',
-  '  command wts generate --inline \\',
+  '  command wts generate --inline --shell bash \\',
   '    --buffer "$current" \\',
   '    --history-file "${HISTFILE:-}" \\',
   '    -- "$intent" \\',

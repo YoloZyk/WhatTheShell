@@ -33,7 +33,7 @@ const LINES: string[] = [
   '        return 1',
   '    end',
   '',
-  '    command wts generate --inline \\',
+  '    command wts generate --inline --shell fish \\',
   '        --buffer "$current" \\',
   '        --history-file "$HISTFILE" \\',
   '        -- "$intent" >$tmpout 2>$tmperr',

@@ -43,7 +43,7 @@ const LINES: string[] = [
   '    $tmperr = [System.IO.Path]::GetTempFileName()',
   '    $rc = 1',
   '    try {',
-  "        $wtsArgs = [System.Collections.ArrayList]@('generate', '--inline')",
+  "        $wtsArgs = [System.Collections.ArrayList]@('generate', '--inline', '--shell', 'powershell')",
   '        if ($line.Length -gt 0) {',
   "            [void]$wtsArgs.Add('--buffer')",
   '            [void]$wtsArgs.Add($line)',
