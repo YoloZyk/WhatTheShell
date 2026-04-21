@@ -136,7 +136,31 @@ function normalizeInlineCommand(raw: string): string {
 function withBufferContext(description: string, buffer: string): string {
   const trimmed = buffer.trim();
   if (!trimmed) return description;
-  return `The user is currently editing this partial command:\n\`\`\`\n${trimmed}\n\`\`\`\nThey want to: ${description}\nGenerate a complete replacement command.`;
+
+  // Single-line ASCII → looks like a partial command (tool name, flags, arg prefix).
+  // Anything else (Chinese, multi-line, natural-language help text) → treat as loose context.
+  const looksLikeCommand = !trimmed.includes('\n') && !/[^\x20-\x7e]/.test(trimmed);
+
+  if (looksLikeCommand) {
+    return `The user has typed the start of a command at their shell prompt and pressed Ctrl+G to complete it:
+\`\`\`
+${trimmed}
+\`\`\`
+Intent: ${description}
+
+TREAT THE PARTIAL AS A STRONG CONSTRAINT. The output should keep the same tool / prefix whenever it can plausibly satisfy the intent. For example:
+- partial "nvidia" + intent "GPU status" -> "nvidia-smi" (not a WMI cmdlet)
+- partial "git" + intent "last 10 commits" -> "git log -n 10"
+- partial "docker" + intent "list running containers" -> "docker ps"
+Only swap to a different tool if the partial genuinely cannot satisfy the intent on the target shell.`;
+  }
+
+  return `The user is currently editing this partial input in their shell:
+\`\`\`
+${trimmed}
+\`\`\`
+They want to: ${description}
+Use the partial as additional context (tool preference, target paths, flags already chosen) and generate a complete command.`;
 }
 
 /** Interactive confirm menu: [R]un [C]opy [E]dit [Q]uit */
