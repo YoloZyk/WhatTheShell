@@ -4,7 +4,7 @@
 
 `wts` lets you describe what you want in plain English (or Chinese), press a shortcut, and get a working shell command filled back into your prompt — without leaving the terminal or opening a browser tab to ask an LLM.
 
-**Current version:** `v0.2.0`. See the [Changelog](#changelog).
+**Current version:** `v0.2.1`. See the [Changelog](#changelog).
 
 ---
 
@@ -298,6 +298,13 @@ wts history --clear  # wipe the log
 ---
 
 ## Changelog
+
+### v0.2.1 — 2026-04-22
+
+Post-release fixes discovered while running v0.2.0 in mixed environments.
+
+- **Bash `Ctrl+G` survives VSCode remote-SSH → docker TTYs** — two stacked bugs caused the prompt to wipe and auto-run the generated command in `bind -x` handlers nested inside a second readline. Fix drops `-e`, brackets the prompt with `stty sane`/restore, routes all user I/O through `/dev/tty`, and feeds the `wts` subprocess `</dev/null`. zsh / fish / PowerShell widgets are unaffected.
+- **Reasoning-model output is now parsed cleanly** — DeepSeek R1, Qwen3, and other reasoning models leak their chain-of-thought as `<think>…</think>` in message content. `wts` now strips those blocks at every parse point (`generate`, `explain`, `ask`, and the inline path) so the actual command/answer comes through intact.
 
 ### v0.2.0 — 2026-04-21
 
