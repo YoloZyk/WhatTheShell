@@ -14,7 +14,7 @@ const program = new Command();
 program
   .name('wts')
   .description('WhatTheShell — AI-powered shell command generator, explainer, and in-line assistant')
-  .version('0.2.0');
+  .version('0.2.1');
 
 // generate
 program

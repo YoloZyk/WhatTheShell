@@ -77,7 +77,8 @@ export class AIClient {
   /** 自由问答 */
   async ask(question: string, language: Language, ctx?: ContextSnapshot): Promise<string> {
     const prompt = buildAskPrompt(question, language, ctx);
-    return this.chat(prompt);
+    const raw = await this.chat(prompt);
+    return stripReasoningTags(raw);
   }
 }
 
@@ -88,8 +89,19 @@ function stripMarkdownFence(raw: string): string {
   return m ? m[1].trim() : s;
 }
 
+/**
+ * Strip reasoning-trace blocks emitted by reasoning models inside chat
+ * content. DeepSeek R1, Qwen3, and others wrap their chain-of-thought in
+ * <think>...</think> (or <thinking>...</thinking>) and put the actual
+ * answer after the closing tag. Returns text with all such blocks removed.
+ */
+export function stripReasoningTags(raw: string): string {
+  return raw.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').trim();
+}
+
 /** 解析 generate 响应 */
 function parseGenerateResponse(raw: string): GenerateResult {
+  raw = stripReasoningTags(raw);
   raw = stripMarkdownFence(raw);
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
   let risk: RiskLevel = 'safe';
@@ -128,6 +140,7 @@ function parseGenerateResponse(raw: string): GenerateResult {
 
 /** 解析 explain 响应 */
 function parseExplainResponse(raw: string): ExplainResult {
+  raw = stripReasoningTags(raw);
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
   let risk: RiskLevel = 'safe';
   let warning: string | undefined;

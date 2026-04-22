@@ -124,9 +124,11 @@ async function runInlineMode(
   }
 }
 
-/** Normalize inline output: strip markdown fence, normalize line endings, trim. */
+/** Normalize inline output: strip reasoning trace, markdown fence, normalize line endings, trim. */
 function normalizeInlineCommand(raw: string): string {
   let s = raw.replace(/\r\n/g, '\n').replace(/\r/g, '');
+  // Reasoning models (DeepSeek R1, Qwen3, ...) leak <think>...</think> into content.
+  s = s.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').trim();
   // Models often wrap their output in ```bash ... ``` / ``` ... ``` despite the prompt instructions.
   const fence = s.match(/^\s*```[a-zA-Z0-9_-]*\s*\n([\s\S]*?)\n```\s*$/);
   if (fence) s = fence[1];
