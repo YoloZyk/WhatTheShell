@@ -16,10 +16,6 @@ export async function generateCommand(description: string, options: GenerateOpti
   const config = loadConfig();
 
   const shell: ShellType = options.shell || detectShell() || config.shell;
-  console.log(`  Option shell: ${options.shell}`);
-  console.log(`  Detected shell: ${detectShell()}`);
-  console.log(`  Configured shell: ${config.shell}`);
-  console.log(`  Using shell: ${shell}`);
 
   const client = new AIClient(config.provider, config.api_key, config.model, config.base_url);
 

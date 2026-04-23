@@ -4,7 +4,7 @@
 
 `wts` lets you describe what you want in plain English (or Chinese), press a shortcut, and get a working shell command filled back into your prompt — without leaving the terminal or opening a browser tab to ask an LLM.
 
-**Current version:** `v0.2.1`. See the [Changelog](#changelog).
+**Current version:** `v0.2.2`. See the [Changelog](#changelog).
 
 ---
 
@@ -299,6 +299,11 @@ wts history --clear  # wipe the log
 
 ## Changelog
 
+### v0.2.2 — 2026-04-23
+
+- Improved shell detection across Windows and Unix environments
+- Fixed command execution compatibility issues
+
 ### v0.2.1 — 2026-04-22
 
 Post-release fixes discovered while running v0.2.0 in mixed environments.
@@ -308,19 +313,16 @@ Post-release fixes discovered while running v0.2.0 in mixed environments.
 
 ### v0.2.0 — 2026-04-21
 
-Turns `wts` from "yet another CLI prompt box" into something genuinely embedded in the shell workflow.
+Major release with shell integration and context awareness.
 
-- **`Ctrl+G` in-line trigger across four shells** — one-line install via `wts shell-init {zsh,bash,fish,powershell}`; rewrites the current buffer with an AI-generated command but never auto-executes; dangerous commands are refused and the original buffer is preserved.
-- **`wts init` first-run wizard** — interactive provider + API-key + shell-integration setup with a live connectivity test; auto-launches when `generate` / `explain` / `ask` is invoked without a configured key.
-- **Context awareness** — every AI call injects PWD, project markers (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `Dockerfile`, …), current git state, and recent shell history into the prompt.
-- **Privacy sanitizer** — strips tokens, bearer values, OpenAI / Anthropic / AWS keys, URL credentials, and `*_TOKEN=` / `*_KEY=` / `*_SECRET=` env-style assignments before anything reaches the model.
-- **Windows-aware danger rules** — 13 new patterns including `Remove-Item -Recurse -Force`, `Format-Volume`, `Clear-Disk`, `diskpart`, `del /s /q`, `Stop-Computer`, `Set-ExecutionPolicy Unrestricted`, and `iwr | iex`.
-- **English CLI** — menus, prompts, errors, and help text are now English by default; `config.language` controls only the AI's reply language.
-- **Per-shell prompt style hints** — generated commands follow the syntax of the active shell (PowerShell cmdlets, bash pipes, fish syntax, zsh globs).
-- **TTY-aware `shell-init`** — emits the script when piped into `eval`, prints a human-readable install hint when run interactively.
-- **`wts generate --inline`** — clean stdout, no UI, no history write — designed for shell-integration scripts and other automation.
-- **`wts config list` health checks** — flags missing API key, unreachable base URL, and current context-collection state.
-- **`context.enable` / `context.history_lines` config keys** — tune or disable context injection at any time.
+- **`Ctrl+G` in-line trigger** — press Ctrl+G anywhere in terminal to describe intent in natural language; generated command fills into the buffer without auto-executing
+- **Four-shell support** — install via `wts shell-init {zsh,bash,fish,powershell}`; works across macOS, Linux, and Windows
+- **`wts init` first-run wizard** — interactive setup with connectivity test; auto-launches when API key is not configured
+- **Context awareness** — AI understands your current project (Node.js, Python, Go, etc.), git state, and recent commands
+- **Privacy protection** — sensitive data like API keys and tokens are stripped before sending to AI
+- **Windows danger rules** — detects PowerShell and CMD commands that could harm your system
+- **`wts config list` health checks** — shows API key status, context state, and integration status
+- **CLI now in English** — menus and prompts are English; AI reply language controlled via `config.language`
 
 ### v0.1.1
 
