@@ -96,13 +96,3 @@ export async function displaySuccess(message: string): Promise<void> {
   const chalk = await getChalk();
   console.log('  ' + chalk.green('✓ ') + message);
 }
-
-/** 显示交互选项提示 */
-export async function displayActions(actions: string[]): Promise<void> {
-  const chalk = await getChalk();
-  const formatted = actions.map(a => {
-    const key = chalk.bold.underline(a[0]);
-    return `[${key}]${a.slice(1)}`;
-  });
-  console.log('  ' + chalk.dim('> ') + formatted.join('  '));
-}

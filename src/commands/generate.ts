@@ -6,7 +6,7 @@ import { collectContext } from '../core/context';
 import { loadConfig } from '../utils/config';
 import { copyToClipboard } from '../utils/clipboard';
 import { addHistory } from '../utils/history';
-import { displayCommand, displayError, displaySuccess, displayActions, startSpinner } from '../utils/display';
+import { displayCommand, displayError, displaySuccess, startSpinner } from '../utils/display';
 import { ensureApiKey } from './init';
 import * as readline from 'readline';
 import { exec } from 'child_process';
@@ -68,7 +68,7 @@ export async function generateCommand(description: string, options: GenerateOpti
       if (finalRisk === 'danger') {
         await displayError('Dangerous command cannot be auto-executed; confirm manually');
       } else {
-        await runCommand(result.command);
+        await runCommand(result.command, options.shell);
         return;
       }
     }
@@ -165,25 +165,37 @@ They want to: ${description}
 Use the partial as additional context (tool preference, target paths, flags already chosen) and generate a complete command.`;
 }
 
-/** Interactive confirm menu: [R]un [C]opy [E]dit [Q]uit */
+/** Interactive confirm menu — arrow-key select. Dangerous commands hide the Run option. */
 async function interactiveConfirm(command: string, isDanger: boolean): Promise<void> {
-  const actions = isDanger
-    ? ['Copy', 'Edit', 'Quit']
-    : ['Run', 'Copy', 'Edit', 'Quit'];
+  const prompts = await import('@inquirer/prompts');
 
-  await displayActions(actions);
+  const choices = [
+    ...(isDanger ? [] : [{ name: 'Run this command', value: 'run' }]),
+    { name: 'Copy to clipboard', value: 'copy' },
+    { name: 'Edit the command', value: 'edit' },
+    { name: 'Cancel', value: 'cancel' },
+  ];
 
-  const key = await readKey();
+  let action: string;
+  try {
+    action = await prompts.select({
+      message: 'What would you like to do?',
+      choices,
+    });
+  } catch (err: any) {
+    // Ctrl+C / Esc → treat as Cancel
+    if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
+      console.log('  Cancelled');
+      return;
+    }
+    throw err;
+  }
 
-  switch (key.toLowerCase()) {
-    case 'r':
-      if (isDanger) {
-        await displayError('Dangerous commands cannot be auto-executed');
-        break;
-      }
+  switch (action) {
+    case 'run':
       await runCommand(command);
       break;
-    case 'c': {
+    case 'copy': {
       const ok = await copyToClipboard(command);
       if (ok) {
         await displaySuccess('Copied to clipboard');
@@ -192,10 +204,10 @@ async function interactiveConfirm(command: string, isDanger: boolean): Promise<v
       }
       break;
     }
-    case 'e': {
+    case 'edit': {
       const edited = await editCommand(command);
       if (edited && edited.trim()) {
-        const editedCheck = (await import('../core/danger')).checkDanger(edited);
+        const editedCheck = checkDanger(edited);
         const editedIsDanger = editedCheck.risk === 'danger';
         await displayCommand(edited, editedCheck.risk, editedCheck.warnings.join('; ') || undefined);
         await interactiveConfirm(edited, editedIsDanger);
@@ -204,39 +216,24 @@ async function interactiveConfirm(command: string, isDanger: boolean): Promise<v
       }
       break;
     }
+    case 'cancel':
     default:
       console.log('  Cancelled');
       break;
   }
 }
 
-/** Read a single keypress. */
-function readKey(): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    process.stdin.setRawMode?.(true);
-    process.stdin.resume();
-    process.stdin.once('data', (data) => {
-      process.stdin.setRawMode?.(false);
-      rl.close();
-      const key = data.toString();
-      // Ctrl+C
-      if (key === '\x03') {
-        process.exit();
-      }
-      console.log();
-      resolve(key);
-    });
-  });
-}
-
 /** Execute a command in a child shell. */
-function runCommand(command: string): Promise<void> {
+function runCommand(command: string, shell?: string): Promise<void> {
   return new Promise((resolve) => {
     console.log();
-    const child = exec(command, { shell: process.env.SHELL || undefined });
-    child.stdout?.pipe(process.stdout);
-    child.stderr?.pipe(process.stderr);
+    const child = exec(command,{ shell: process.env.SHELL || undefined }, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`\n  ${error.message}`);
+      }
+      if (stdout) process.stdout.write(stdout);
+      if (stderr) process.stderr.write(stderr);
+    });
     child.on('close', (code) => {
       if (code !== 0) {
         console.error(`\n  Exit code: ${code}`);
