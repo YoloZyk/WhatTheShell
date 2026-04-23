@@ -15,7 +15,12 @@ export async function generateCommand(description: string, options: GenerateOpti
   if (!(await ensureApiKey({ inline: options.inline }))) return;
   const config = loadConfig();
 
-  const shell: ShellType = options.shell || config.shell || detectShell();
+  const shell: ShellType = options.shell || detectShell() || config.shell;
+  console.log(`  Option shell: ${options.shell}`);
+  console.log(`  Detected shell: ${detectShell()}`);
+  console.log(`  Configured shell: ${config.shell}`);
+  console.log(`  Using shell: ${shell}`);
+
   const client = new AIClient(config.provider, config.api_key, config.model, config.base_url);
 
   const ctx = config.context_enable
@@ -68,13 +73,13 @@ export async function generateCommand(description: string, options: GenerateOpti
       if (finalRisk === 'danger') {
         await displayError('Dangerous command cannot be auto-executed; confirm manually');
       } else {
-        await runCommand(result.command, options.shell);
+        await runCommand(result.command, shell);
         return;
       }
     }
 
     // interactive confirm
-    await interactiveConfirm(result.command, finalRisk === 'danger');
+    await interactiveConfirm(result.command, finalRisk === 'danger', shell);
 
   } catch (err: any) {
     spinner.stop();
@@ -166,7 +171,7 @@ Use the partial as additional context (tool preference, target paths, flags alre
 }
 
 /** Interactive confirm menu — arrow-key select. Dangerous commands hide the Run option. */
-async function interactiveConfirm(command: string, isDanger: boolean): Promise<void> {
+async function interactiveConfirm(command: string, isDanger: boolean, shell: ShellType): Promise<void> {
   const prompts = await import('@inquirer/prompts');
 
   const choices = [
@@ -193,7 +198,7 @@ async function interactiveConfirm(command: string, isDanger: boolean): Promise<v
 
   switch (action) {
     case 'run':
-      await runCommand(command);
+      await runCommand(command, shell);
       break;
     case 'copy': {
       const ok = await copyToClipboard(command);
@@ -210,7 +215,7 @@ async function interactiveConfirm(command: string, isDanger: boolean): Promise<v
         const editedCheck = checkDanger(edited);
         const editedIsDanger = editedCheck.risk === 'danger';
         await displayCommand(edited, editedCheck.risk, editedCheck.warnings.join('; ') || undefined);
-        await interactiveConfirm(edited, editedIsDanger);
+        await interactiveConfirm(edited, editedIsDanger, shell);
       } else {
         console.log('  Cancelled');
       }
@@ -224,10 +229,32 @@ async function interactiveConfirm(command: string, isDanger: boolean): Promise<v
 }
 
 /** Execute a command in a child shell. */
-function runCommand(command: string, shell?: string): Promise<void> {
+function runCommand(command: string, shell?: ShellType): Promise<void> {
   return new Promise((resolve) => {
     console.log();
-    const child = exec(command,{ shell: process.env.SHELL || undefined }, (error, stdout, stderr) => {
+    // 1. 确定运行环境
+    // 如果用户通过 --shell 传入了 powershell，我们需要将其转换为可执行文件名
+    let shellToUse: string | undefined;
+
+    if (process.platform === 'win32') {
+      // console.log(`  Running command in Windows shell: ${shell || 'default'}`);
+      // 显式映射：将前端定义的 ShellType 映射为 Windows 可执行文件名
+      const winShellMap: Record<string, string> = {
+        'powershell': 'powershell.exe',
+        'cmd': 'cmd.exe',
+        'bash': 'bash.exe', // 针对 Windows 上的 Git Bash 或 WSL
+      };
+
+      shellToUse = (shell && winShellMap[shell]) 
+        || process.env.SHELL 
+        || 'powershell.exe'; // 默认回退
+    } else {
+      // console.log(`  Running command in Unix shell: ${shell || 'default'}`);
+      // Unix/Linux/macOS 直接使用 shell 名称或环境变量
+      shellToUse = shell || process.env.SHELL || '/bin/sh';
+    }
+    
+    const child = exec(command, { shell: shellToUse }, (error, stdout, stderr) => {
       if (error) {
         console.error(`\n  ${error.message}`);
       }
