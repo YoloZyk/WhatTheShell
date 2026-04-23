@@ -7,5 +7,6 @@ export function detectShell(): ShellType {
   if (shell.includes('zsh')) return 'zsh';
   if (shell.includes('fish')) return 'fish';
   if (shell.includes('powershell') || shell.includes('pwsh')) return 'powershell';
+  if (process.platform === 'win32' && process.env.PSModulePath) return 'powershell';
   return 'bash';
 }
