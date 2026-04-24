@@ -45,18 +45,24 @@ export async function displayCommand(command: string, risk: RiskLevel, warning?:
                  risk === 'warning' ? chalk.yellow :
                  chalk.white;
 
-  // Top border with label
+  // Build header line with label
+  let label = '[generate]';
   if (risk === 'danger') {
-    console.log(`${borderFn('┌─')} ${labelFn('[generate]')} ${borderFn('─'.repeat(46))}`);
-    console.log(`${borderFn('│')}  ${labelFn(' ⚠ DANGER ')}`);
-    console.log(`${borderFn('│')}  ${warnFn(warning || '')}`);
+    label = `[generate ⚠ DANGER]`;
   } else if (risk === 'warning') {
-    console.log(`${borderFn('┌─')} ${labelFn('[generate]')} ${borderFn('─'.repeat(46))}`);
-    console.log(`${borderFn('│')}  ${labelFn(' ! CAUTION ')}`);
-    console.log(`${borderFn('│')}  ${warnFn(warning || '')}`);
-  } else {
-    console.log(`${borderFn('┌─')} ${labelFn('[generate]')} ${borderFn('─'.repeat(46))}`);
-    console.log(`${borderFn('│')}`);
+    label = `[generate ! CAUTION]`;
+  }
+
+  // Calculate line length (60 - len("┌─ ") - len(label) - len(" ─"))
+  const labelLen = label.length + 4; // "┌─ " + label + " "
+  const lineLen = 60 - labelLen;
+  const line = '─'.repeat(Math.max(1, lineLen));
+
+  console.log(`${borderFn('┌─')} ${labelFn(label)} ${borderFn(line)}`);
+
+  // Warning message (if any)
+  if (warning) {
+    console.log(`${borderFn('│')}  ${warnFn(warning)}`);
   }
 
   // Command output
@@ -90,18 +96,24 @@ export async function displayExplanation(
                  risk === 'warning' ? chalk.yellow :
                  chalk.white;
 
-  // Header
+  // Build header line with label
+  let label = '[explain]';
   if (risk === 'danger') {
-    console.log(`${borderFn('┌─')} ${labelFn('[explain]')} ${borderFn('─'.repeat(46))}`);
-    console.log(`${borderFn('│')}  ${labelFn(' ⚠ DANGER ')}`);
-    console.log(`${borderFn('│')}  ${warnFn(warning || '')}`);
+    label = `[explain ⚠ DANGER]`;
   } else if (risk === 'warning') {
-    console.log(`${borderFn('┌─')} ${labelFn('[explain]')} ${borderFn('─'.repeat(46))}`);
-    console.log(`${borderFn('│')}  ${labelFn(' ! CAUTION ')}`);
-    console.log(`${borderFn('│')}  ${warnFn(warning || '')}`);
-  } else {
-    console.log(`${borderFn('┌─')} ${labelFn('[explain]')} ${borderFn('─'.repeat(46))}`);
-    console.log(`${borderFn('│')}`);
+    label = `[explain ! CAUTION]`;
+  }
+
+  // Calculate line length (60 - len("┌─ ") - len(label) - len(" ─"))
+  const labelLen = label.length + 4;
+  const lineLen = 60 - labelLen;
+  const line = '─'.repeat(Math.max(1, lineLen));
+
+  console.log(`${borderFn('┌─')} ${labelFn(label)} ${borderFn(line)}`);
+
+  // Warning message (if any)
+  if (warning) {
+    console.log(`${borderFn('│')}  ${warnFn(warning)}`);
   }
 
   // Segments
