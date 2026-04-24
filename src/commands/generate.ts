@@ -10,6 +10,7 @@ import { displayCommand, displayError, displaySuccess, startSpinner } from '../u
 import { ensureApiKey } from './init';
 import * as readline from 'readline';
 import { exec } from 'child_process';
+import chalk from 'chalk';
 
 export async function generateCommand(description: string, options: GenerateOptions): Promise<void> {
   if (!(await ensureApiKey({ inline: options.inline }))) return;
@@ -32,7 +33,13 @@ export async function generateCommand(description: string, options: GenerateOpti
     return;
   }
 
-  const spinner = await startSpinner('Generating command...');
+  // Show input header
+  console.log(`${chalk.cyan('┌─')} ${chalk.green('[generate]')} ${chalk.gray('─'.repeat(46))}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('>')} ${chalk.white(description)}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('shell:')} ${chalk.cyan(shell)}`);
+  console.log(`${chalk.cyan('├─')} ${chalk.gray('─'.repeat(56))}`);
+
+  const spinner = await startSpinner('Generating...');
 
   try {
     const enriched = options.buffer ? withBufferContext(description, options.buffer) : description;
@@ -169,12 +176,13 @@ Use the partial as additional context (tool preference, target paths, flags alre
 /** Interactive confirm menu — arrow-key select. Dangerous commands hide the Run option. */
 async function interactiveConfirm(command: string, isDanger: boolean, shell: ShellType): Promise<void> {
   const prompts = await import('@inquirer/prompts');
+  const chalk = (await import('chalk')).default;
 
   const choices = [
-    ...(isDanger ? [] : [{ name: 'Run this command', value: 'run' }]),
-    { name: 'Copy to clipboard', value: 'copy' },
-    { name: 'Edit the command', value: 'edit' },
-    { name: 'Cancel', value: 'cancel' },
+    ...(isDanger ? [] : [{ name: `${chalk.green('Run')} this command`, value: 'run' }]),
+    { name: `${chalk.cyan('Copy')} to clipboard`, value: 'copy' },
+    { name: `${chalk.yellow('Edit')} the command`, value: 'edit' },
+    { name: `${chalk.gray('Cancel')}`, value: 'cancel' },
   ];
 
   let action: string;
@@ -186,7 +194,9 @@ async function interactiveConfirm(command: string, isDanger: boolean, shell: She
   } catch (err: any) {
     // Ctrl+C / Esc → treat as Cancel
     if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
-      console.log('  Cancelled');
+      console.log();
+      console.log(`  ${chalk.gray('Cancelled')}`);
+      console.log();
       return;
     }
     throw err;
@@ -213,13 +223,17 @@ async function interactiveConfirm(command: string, isDanger: boolean, shell: She
         await displayCommand(edited, editedCheck.risk, editedCheck.warnings.join('; ') || undefined);
         await interactiveConfirm(edited, editedIsDanger, shell);
       } else {
-        console.log('  Cancelled');
+        console.log();
+        console.log(`  ${chalk.gray('Cancelled')}`);
+        console.log();
       }
       break;
     }
     case 'cancel':
     default:
-      console.log('  Cancelled');
+      console.log();
+      console.log(`  ${chalk.gray('Cancelled')}`);
+      console.log();
       break;
   }
 }

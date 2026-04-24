@@ -1,15 +1,9 @@
 import type { RiskLevel, CommandSegment } from '../types';
+import chalk from 'chalk';
+import { success as uiSuccess, error as uiError, warn as uiWarn } from './ui';
 
 // chalk/ora 是 ESM-only，需要动态导入
-let _chalk: any = null;
 let _ora: any = null;
-
-async function getChalk() {
-  if (!_chalk) {
-    _chalk = (await import('chalk')).default;
-  }
-  return _chalk;
-}
 
 async function getOra() {
   if (!_ora) {
@@ -24,20 +18,55 @@ export async function startSpinner(text: string) {
   return ora({ text, spinner: 'dots' }).start();
 }
 
+/** Color helper for box-drawing characters */
+function box(color: 'cyan' | 'red' | 'yellow' | 'gray' | 'white') {
+  const colorMap: Record<string, (s: string) => string> = {
+    cyan: chalk.cyan,
+    red: chalk.red,
+    yellow: chalk.yellow,
+    gray: chalk.gray,
+    white: chalk.white,
+  };
+  return (char: string) => colorMap[color](char);
+}
+
 /** 显示生成的命令 */
 export async function displayCommand(command: string, risk: RiskLevel, warning?: string): Promise<void> {
-  const chalk = await getChalk();
-
   console.log();
-  if (risk === 'danger' && warning) {
-    console.log(chalk.bgRed.white.bold(' ⚠ DANGER ') + ' ' + chalk.red(warning));
-    console.log();
-  } else if (risk === 'warning' && warning) {
-    console.log(chalk.bgYellow.black.bold(' ⚠ CAUTION ') + ' ' + chalk.yellow(warning));
-    console.log();
+
+  // Choose colors based on risk
+  const borderFn = risk === 'danger' ? chalk.red :
+                   risk === 'warning' ? chalk.yellow :
+                   chalk.cyan;
+  const labelFn = risk === 'danger' ? chalk.bgRed.white.bold :
+                 risk === 'warning' ? chalk.bgYellow.black.bold :
+                 chalk.green;
+  const warnFn = risk === 'danger' ? chalk.red :
+                 risk === 'warning' ? chalk.yellow :
+                 chalk.white;
+
+  // Top border with label
+  if (risk === 'danger') {
+    console.log(`${borderFn('┌─')} ${labelFn('[generate]')} ${borderFn('─'.repeat(46))}`);
+    console.log(`${borderFn('│')}  ${labelFn(' ⚠ DANGER ')}`);
+    console.log(`${borderFn('│')}  ${warnFn(warning || '')}`);
+  } else if (risk === 'warning') {
+    console.log(`${borderFn('┌─')} ${labelFn('[generate]')} ${borderFn('─'.repeat(46))}`);
+    console.log(`${borderFn('│')}  ${labelFn(' ! CAUTION ')}`);
+    console.log(`${borderFn('│')}  ${warnFn(warning || '')}`);
+  } else {
+    console.log(`${borderFn('┌─')} ${labelFn('[generate]')} ${borderFn('─'.repeat(46))}`);
+    console.log(`${borderFn('│')}`);
   }
 
-  console.log('  ' + chalk.green.bold(command));
+  // Command output
+  console.log(`${borderFn('│')}`);
+  const lines = command.split('\n');
+  for (const line of lines) {
+    console.log(`${borderFn('│')}  ${chalk.green.bold(line)}`);
+  }
+  console.log(`${borderFn('│')}`);
+  console.log(`${borderFn('└─')} ${chalk.gray('Run it, copy it, or edit it below')}`);
   console.log();
 }
 
@@ -48,51 +77,85 @@ export async function displayExplanation(
   risk: RiskLevel,
   warning?: string
 ): Promise<void> {
-  const chalk = await getChalk();
-
   console.log();
-  if (risk === 'danger' && warning) {
-    console.log(chalk.bgRed.white.bold(' ⚠ DANGER ') + ' ' + chalk.red(warning));
-    console.log();
-  } else if (risk === 'warning' && warning) {
-    console.log(chalk.bgYellow.black.bold(' ⚠ CAUTION ') + ' ' + chalk.yellow(warning));
-    console.log();
+
+  // Choose colors based on risk
+  const borderFn = risk === 'danger' ? chalk.red :
+                   risk === 'warning' ? chalk.yellow :
+                   chalk.cyan;
+  const labelFn = risk === 'danger' ? chalk.bgRed.white.bold :
+                  risk === 'warning' ? chalk.bgYellow.black.bold :
+                  chalk.cyan;
+  const warnFn = risk === 'danger' ? chalk.red :
+                 risk === 'warning' ? chalk.yellow :
+                 chalk.white;
+
+  // Header
+  if (risk === 'danger') {
+    console.log(`${borderFn('┌─')} ${labelFn('[explain]')} ${borderFn('─'.repeat(46))}`);
+    console.log(`${borderFn('│')}  ${labelFn(' ⚠ DANGER ')}`);
+    console.log(`${borderFn('│')}  ${warnFn(warning || '')}`);
+  } else if (risk === 'warning') {
+    console.log(`${borderFn('┌─')} ${labelFn('[explain]')} ${borderFn('─'.repeat(46))}`);
+    console.log(`${borderFn('│')}  ${labelFn(' ! CAUTION ')}`);
+    console.log(`${borderFn('│')}  ${warnFn(warning || '')}`);
+  } else {
+    console.log(`${borderFn('┌─')} ${labelFn('[explain]')} ${borderFn('─'.repeat(46))}`);
+    console.log(`${borderFn('│')}`);
   }
 
+  // Segments
   if (segments.length > 0) {
+    console.log(`${borderFn('│')}`);
     const maxLen = Math.max(...segments.map(s => s.text.length), 10);
     for (const seg of segments) {
       const text = chalk.cyan(seg.text.padEnd(maxLen + 2));
       const comment = chalk.gray('# ' + seg.explanation);
-      console.log('  ' + text + comment);
+      console.log(`${borderFn('│')}  ${text}${comment}`);
     }
-    console.log();
   }
 
+  // Summary
   if (summary) {
-    console.log('  ' + chalk.dim('Summary: ') + summary);
-    console.log();
+    console.log(`${borderFn('│')}`);
+    console.log(`${borderFn('│')}  ${chalk.gray('Summary:')} ${chalk.white(summary)}`);
   }
+
+  console.log(`${borderFn('│')}`);
+  console.log(`${borderFn('└─')} ${chalk.gray('─'.repeat(52))}`);
+  console.log();
 }
 
 /** 显示问答回复 */
 export async function displayAnswer(answer: string): Promise<void> {
-  const chalk = await getChalk();
   console.log();
-  console.log('  ' + chalk.white(answer.replace(/\n/g, '\n  ')));
+
+  // Header
+  console.log(`${chalk.cyan('┌─')} ${chalk.magenta('[ask]')} ${chalk.gray('─'.repeat(50))}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  // Answer content
+  const lines = answer.split('\n');
+  for (const line of lines) {
+    console.log(`${chalk.cyan('│')}  ${chalk.white(line)}`);
+  }
+
+  console.log(`${chalk.cyan('│')}`);
+  console.log(`${chalk.cyan('└─')} ${chalk.gray('─'.repeat(52))}`);
   console.log();
 }
 
 /** 显示错误信息 */
 export async function displayError(message: string): Promise<void> {
-  const chalk = await getChalk();
-  console.error();
-  console.error('  ' + chalk.red('✗ ') + chalk.red(message));
-  console.error();
+  uiError(message);
 }
 
 /** 显示成功信息 */
 export async function displaySuccess(message: string): Promise<void> {
-  const chalk = await getChalk();
-  console.log('  ' + chalk.green('✓ ') + message);
+  uiSuccess(message);
+}
+
+/** 显示警告信息 */
+export async function displayWarn(message: string): Promise<void> {
+  uiWarn(message);
 }

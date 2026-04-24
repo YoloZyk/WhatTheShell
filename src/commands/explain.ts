@@ -1,4 +1,5 @@
 import type { ExplainOptions, DetailLevel } from '../types';
+import chalk from 'chalk';
 import { AIClient } from '../core/ai';
 import { checkDanger } from '../core/danger';
 import { collectContext } from '../core/context';
@@ -16,6 +17,14 @@ export async function explainCommand(command: string, options: ExplainOptions): 
   const ctx = config.context_enable
     ? collectContext({ historyLines: config.context_history_lines })
     : undefined;
+
+  // Show input header
+  console.log(`${chalk.cyan('┌─')} ${chalk.cyan('[explain]')} ${chalk.gray('─'.repeat(46))}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('>')} ${chalk.green(command)}`);
+  if (level !== 'normal') {
+    console.log(`${chalk.cyan('│')}  ${chalk.gray('mode:')} ${chalk.cyan(level)}`);
+  }
+  console.log(`${chalk.cyan('├─')} ${chalk.gray('─'.repeat(56))}`);
 
   const spinner = await startSpinner('Parsing command...');
 

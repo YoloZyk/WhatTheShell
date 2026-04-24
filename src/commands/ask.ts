@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { AIClient } from '../core/ai';
 import { collectContext } from '../core/context';
 import { loadConfig } from '../utils/config';
@@ -13,6 +14,12 @@ export async function askCommand(question: string): Promise<void> {
   const ctx = config.context_enable
     ? collectContext({ historyLines: config.context_history_lines })
     : undefined;
+
+  // Show input header
+  console.log(`${chalk.cyan('┌─')} ${chalk.magenta('[ask]')} ${chalk.gray('─'.repeat(50))}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('>')} ${chalk.white(question)}`);
+  console.log(`${chalk.cyan('├─')} ${chalk.gray('─'.repeat(56))}`);
+
   const spinner = await startSpinner('Thinking...');
 
   try {

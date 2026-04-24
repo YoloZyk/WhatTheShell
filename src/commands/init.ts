@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import chalk from 'chalk';
 import type { ShellType } from '../types';
 import { PROVIDER_PRESETS, loadConfig, applyPreset, setConfigValue } from '../utils/config';
 import { AIClient } from '../core/ai';
@@ -8,23 +9,54 @@ import { detectShell } from '../core/shell';
 import { renderInitScript, isSupportedShell, SUPPORTED_SHELLS } from '../integrations/shell';
 
 /**
+ * Draw a box-drawing header panel.
+ */
+function drawHeader(title: string, subtitle?: string): void {
+  const width = 52;
+  const line = '─'.repeat(width - 2);
+  console.log();
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold(title)} ${chalk.gray(line)}`);
+  if (subtitle) {
+    console.log(`${chalk.cyan('│')}  ${chalk.gray(subtitle)}`);
+  }
+}
+
+/**
+ * Draw a step indicator: "Step 2 of 4"
+ */
+function drawStep(current: number, total: number, label: string): void {
+  console.log();
+  console.log(`  ${chalk.cyan('[')}${chalk.bold(String(current))}${chalk.cyan('/')}${String(total)}${chalk.cyan(']')} ${chalk.white(label)}`);
+}
+
+/**
+ * Draw a divider between steps.
+ */
+function drawDivider(): void {
+  console.log(`${chalk.cyan('│')}`);
+}
+
+/**
  * Interactive first-run setup wizard.
- * Four steps: provider select → API key (with live connectivity test) →
- * shell integration install → examples. Ctrl+C at any step exits cleanly;
- * whatever config has already been written is preserved.
+ * Steps: welcome → provider + model → API key → shell integration → done.
+ * Ctrl+C at any step exits cleanly; already-saved config is preserved.
  */
 export async function initCommand(): Promise<void> {
   const prompts = await loadPrompts();
 
-  console.log();
-  console.log('  WhatTheShell setup wizard');
-  console.log('  Press Ctrl+C at any time to abort; already-saved settings are kept');
-  console.log();
-
   try {
-    // ---------- Step 1: Provider ----------
+    // ---------- Welcome ----------
+    console.log();
+    console.log(`${chalk.cyan('┌─')} ${chalk.bold('WhatTheShell')} ${chalk.gray('─'.repeat(42))}`);
+    console.log(`${chalk.cyan('│')}  ${chalk.gray('Welcome! Let\'s set up your AI provider.')}`);
+    console.log(`${chalk.cyan('│')}  ${chalk.gray('Press Ctrl+C anytime to abort.')}`);
+    console.log(`${chalk.cyan('└─')} ${chalk.gray('─'.repeat(50))}`);
+
+    // ---------- Step 1: Provider + Model ----------
+    drawStep(1, 3, 'Select provider');
+
     const providerChoices = Object.entries(PROVIDER_PRESETS).map(([k, v]) => ({
-      name: `${v.label.padEnd(24)} (${v.model})`,
+      name: `${v.label.padEnd(18)} ${chalk.gray(v.model)}`,
       value: k,
     }));
 
@@ -33,9 +65,39 @@ export async function initCommand(): Promise<void> {
       choices: providerChoices,
     });
     applyPreset(providerKey);
-
-    // ---------- Step 2: API key + connectivity test ----------
     const preset = PROVIDER_PRESETS[providerKey];
+
+    // Inline model/base_url customization (no extra confirm step)
+    drawDivider();
+    const customize = await prompts.confirm({
+      message: `Customize ${chalk.cyan('model')} or ${chalk.cyan('base_url')}?`,
+      default: false,
+    });
+
+    let model = preset.model;
+    let baseUrl = preset.base_url || '';
+
+    if (customize) {
+      drawDivider();
+      const newModel = await prompts.input({
+        message: `Model ${chalk.gray('(press Enter for default)')}:`,
+        default: preset.model,
+      });
+      model = newModel.trim() || preset.model;
+
+      drawDivider();
+      const newBaseUrl = await prompts.input({
+        message: `Base URL ${chalk.gray('(press Enter for default)')}:`,
+        default: preset.base_url || '',
+      });
+      baseUrl = newBaseUrl.trim() || preset.base_url || '';
+
+      setConfigValue('model', model);
+      if (baseUrl) setConfigValue('base_url', baseUrl);
+    }
+
+    // ---------- Step 2: API key ----------
+    drawStep(2, 3, 'API key');
     let apiKey = '';
     let keyValidated = false;
 
@@ -46,21 +108,22 @@ export async function initCommand(): Promise<void> {
       })).trim();
 
       if (!apiKey) {
-        console.log('  ✗ API key cannot be empty');
+        console.log();
+        console.log(`  ${chalk.red('×')} ${chalk.gray('API key cannot be empty')}`);
         continue;
       }
       setConfigValue('api_key', apiKey);
 
-      process.stdout.write('  Testing connection...');
+      process.stdout.write(`  ${chalk.gray('Testing connection...')}`);
       const test = await testApiKey();
       if (test.ok) {
-        console.log(` ✓ (${test.latencyMs}ms)`);
+        console.log(` ${chalk.green('✓')} ${chalk.gray(`(${test.latencyMs}ms)`)}`);
         keyValidated = true;
       } else {
-        console.log(' ✗');
-        console.log(`    ${test.error}`);
+        console.log(` ${chalk.red('×')}`);
+        console.log(`    ${chalk.red(test.error || 'Connection failed')}`);
         const retry = await prompts.confirm({
-          message: 'Re-enter the API key? (No keeps the current key and moves on)',
+          message: 'Re-enter the API key?',
           default: true,
         });
         if (!retry) {
@@ -70,28 +133,33 @@ export async function initCommand(): Promise<void> {
     }
 
     // ---------- Step 3: Shell integration ----------
+    drawStep(3, 3, 'Shell integration');
     const shell = detectShell();
     if (isSupportedShell(shell)) {
       await maybeInstallShellIntegration(shell, prompts);
     } else {
       console.log();
-      console.log(`  Detected shell "${shell}" — Ctrl+G integration is not supported (supported: ${SUPPORTED_SHELLS.join(', ')})`);
+      console.log(`  ${chalk.yellow('!')} Detected ${chalk.cyan(shell)} — not supported yet`);
+      console.log(`    ${chalk.gray('Supported:')} ${SUPPORTED_SHELLS.join(', ')}`);
     }
 
-    // ---------- Step 4: Summary ----------
+    // ---------- Done ----------
     console.log();
-    console.log('  ✓ All set. Try it:');
+    console.log(`${chalk.cyan('┌─')} ${chalk.green('All set!')} ${chalk.gray('─'.repeat(46))}`);
+    console.log(`${chalk.cyan('│')}`);
+    console.log(`${chalk.cyan('│')}  ${chalk.green('wts g')} "list files by size"`);
+    console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} "git rebase -i"`);
+    console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "diff between find and fd"`);
+    console.log(`${chalk.cyan('│')}`);
+    console.log(`${chalk.cyan('│')}  ${chalk.cyan('eval "$(wts shell-init)"')}  ${chalk.gray('enable Ctrl+G')}`);
+    console.log(`${chalk.cyan('│')}`);
+    console.log(`${chalk.cyan('└─')} ${chalk.gray('─'.repeat(50))}`);
     console.log();
-    console.log('    wts generate "list files in current dir by size"');
-    console.log('    wts explain  "awk \'{sum+=$5} END {print sum}\' a.log"');
-    console.log('    wts ask      "what\'s the difference between find and fd?"');
-    console.log('    Ctrl+G       press anywhere on the command line');
-    console.log();
+
   } catch (err: any) {
-    // Inquirer throws ExitPromptError on Ctrl+C
     if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
       console.log();
-      console.log('  Setup cancelled');
+      console.log(`  ${chalk.gray('Setup cancelled')}`);
       return;
     }
     throw err;
@@ -150,11 +218,11 @@ async function testApiKey(): Promise<{ ok: boolean; latencyMs?: number; error?: 
     return { ok: true, latencyMs: Date.now() - start };
   } catch (e: any) {
     const msg = String(e?.message || e);
-    if (msg.includes('timeout_8s')) return { ok: false, error: 'Request timed out (>8s). Network restricted, or base_url is wrong.' };
-    if (/401|unauthorized|invalid.*api.*key|authentication/i.test(msg)) return { ok: false, error: 'API key rejected (401). Double-check the paste.' };
-    if (/403|forbidden/i.test(msg)) return { ok: false, error: 'Forbidden (403). Possible region restriction or inactive account.' };
-    if (/429|rate.?limit/i.test(msg)) return { ok: false, error: 'Rate-limited or quota exceeded — but the key itself looks valid.' };
-    if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET/i.test(msg)) return { ok: false, error: `Network unreachable: ${msg.split('\n')[0]}` };
+    if (msg.includes('timeout_8s')) return { ok: false, error: 'Request timed out (>8s). Check network or base_url.' };
+    if (/401|unauthorized|invalid.*api.*key|authentication/i.test(msg)) return { ok: false, error: 'API key rejected (401). Check the paste.' };
+    if (/403|forbidden/i.test(msg)) return { ok: false, error: 'Forbidden (403). Possible region restriction.' };
+    if (/429|rate.?limit/i.test(msg)) return { ok: false, error: 'Rate-limited — key looks valid.' };
+    if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET/i.test(msg)) return { ok: false, error: `Network error: ${msg.split('\n')[0]}` };
     return { ok: false, error: msg.split('\n')[0].slice(0, 160) };
   }
 }
@@ -162,22 +230,22 @@ async function testApiKey(): Promise<{ ok: boolean; latencyMs?: number; error?: 
 async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Promise<void> {
   const home = process.env.HOME || process.env.USERPROFILE || '';
   if (!home) {
-    console.log('  ✗ Could not determine HOME directory; skipping shell integration');
+    console.log(`  ${chalk.red('×')} Could not determine HOME directory`);
     return;
   }
 
   if (isAlreadyInstalled(shell, home)) {
-    console.log(`  ✓ ${shell} integration already installed, skipping`);
+    console.log(`  ${chalk.green('✓')} ${shell} integration already installed`);
     return;
   }
 
   console.log();
   const install = await prompts.confirm({
-    message: `Detected ${shell}. Install the Ctrl+G integration?`,
+    message: `Install ${chalk.cyan('Ctrl+G')} integration for ${shell}?`,
     default: true,
   });
   if (!install) {
-    console.log(`  Skipped. You can install later with: eval "$(wts shell-init ${shell})"`);
+    console.log(`  ${chalk.gray('Skipped. Run:')} eval "$(wts shell-init ${shell})"`);
     return;
   }
 
@@ -186,10 +254,10 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
     const line = `eval "$(wts shell-init ${shell})"`;
     try {
       fs.appendFileSync(rc, `\n# WhatTheShell (wts) integration\n${line}\n`);
-      console.log(`  ✓ Wrote to ${rc}`);
-      console.log(`    Open a new terminal, or run: source ${rc}`);
+      console.log(`  ${chalk.green('✓')} Written to ${rc}`);
+      console.log(`    ${chalk.gray('Run: source')} ${rc}`);
     } catch (e: any) {
-      console.log(`  ✗ Failed to write ${rc}: ${e.message}`);
+      console.log(`  ${chalk.red('×')} Failed: ${e.message}`);
     }
     return;
   }
@@ -200,10 +268,10 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
     try {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(target, renderInitScript('fish'));
-      console.log(`  ✓ Wrote to ${target}`);
-      console.log(`    Open a new fish shell to activate`);
+      console.log(`  ${chalk.green('✓')} Written to ${target}`);
+      console.log(`    ${chalk.gray('Restart fish to activate')}`);
     } catch (e: any) {
-      console.log(`  ✗ Failed to write ${target}: ${e.message}`);
+      console.log(`  ${chalk.red('×')} Failed: ${e.message}`);
     }
     return;
   }
@@ -211,17 +279,17 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
   if (shell === 'powershell') {
     const profilePath = resolvePowerShellProfile();
     if (!profilePath) {
-      console.log('  Could not auto-resolve $PROFILE; inside PowerShell run manually:');
-      console.log('    wts shell-init powershell | Out-String | Add-Content -Path $PROFILE');
+      console.log(`  ${chalk.yellow('!')} Could not auto-detect $PROFILE`);
+      console.log(`    ${chalk.gray('Run in PowerShell:')} wts shell-init powershell | Out-String | Add-Content -Path $PROFILE`);
       return;
     }
     try {
       fs.mkdirSync(path.dirname(profilePath), { recursive: true });
       fs.appendFileSync(profilePath, '\n' + renderInitScript('powershell'));
-      console.log(`  ✓ Wrote to ${profilePath}`);
-      console.log(`    Open a new PowerShell window, or run: . $PROFILE`);
+      console.log(`  ${chalk.green('✓')} Written to ${profilePath}`);
+      console.log(`    ${chalk.gray('Run:')} . $PROFILE`);
     } catch (e: any) {
-      console.log(`  ✗ Failed to write ${profilePath}: ${e.message}`);
+      console.log(`  ${chalk.red('×')} Failed: ${e.message}`);
     }
   }
 }

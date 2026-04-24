@@ -1,7 +1,9 @@
 import type { WtsConfig, AIProvider, Language, ShellType } from '../types';
 import * as path from 'path';
 import * as fs from 'fs';
+import chalk from 'chalk';
 import { parse, stringify } from '@iarna/toml';
+import { BOX_WIDTH, kvRow, status, footer, success, error } from './ui';
 
 const WTS_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '~', '.wts');
 const CONFIG_PATH = path.join(WTS_DIR, 'config.toml');
@@ -86,10 +88,10 @@ export function setConfigValue(key: string, value: string): void {
   const resolvedKey = KEY_ALIASES[key] || key;
 
   if (!VALID_KEYS.has(resolvedKey)) {
-    console.error(`  Unknown config key: ${key}`);
+    error(`Unknown config key: ${key}`);
     const friendly = [...VALID_KEYS].filter(k => !Object.values(KEY_ALIASES).includes(k) || Object.keys(KEY_ALIASES).some(a => KEY_ALIASES[a] === k));
     const aliases = Object.keys(KEY_ALIASES);
-    console.error(`  Available keys: ${friendly.concat(aliases).join(', ')}`);
+    console.error(`  ${chalk.gray('Available:')} ${friendly.concat(aliases).join(', ')}`);
     return;
   }
 
@@ -104,8 +106,8 @@ export function setConfigValue(key: string, value: string): void {
       context_enable: 'true, false',
       context_history_lines: 'non-negative integer (0 disables history injection)',
     };
-    console.error(`  Invalid value: ${value}`);
-    console.error(`  Accepted values for ${key}: ${hints[resolvedKey]}`);
+    error(`Invalid value: ${value}`);
+    console.error(`  ${chalk.gray('Accepted:')} ${hints[resolvedKey]}`);
     return;
   }
 
@@ -120,33 +122,70 @@ export function setConfigValue(key: string, value: string): void {
   saveConfig(config);
 
   const displayValue = resolvedKey === 'api_key' ? maskValue(value) : (config as any)[resolvedKey];
-  console.log(`  ✓ ${key} = ${displayValue}`);
+  success(`${key} = ${displayValue}`);
 }
 
 /** Print the full config plus a health-check footer */
 export function listConfig(): void {
   const config = loadConfig();
   const fromFile = fs.existsSync(CONFIG_PATH);
-  console.log(`  Config file: ${CONFIG_PATH}${fromFile ? '' : ' (not created yet, using defaults)'}\n`);
-  for (const [key, value] of Object.entries(config)) {
-    const display = key === 'api_key' ? maskValue(String(value)) : value;
-    console.log(`  ${key} = ${display}`);
-  }
+
   console.log();
+  const line = '─'.repeat(BOX_WIDTH - 2);
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold('Configuration')} ${chalk.gray(line)}`);
 
-  // Health check: API Key + Context + Shell integration status
-  const keyState = config.api_key
-    ? '✓ set'
-    : '✗ not set (run `wts init` to configure)';
-  console.log(`  API Key: ${keyState}`);
+  // Config file path
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('file:')} ${CONFIG_PATH}${fromFile ? '' : chalk.gray(' (defaults)')}`);
 
-  const ctxState = config.context_enable
-    ? `on (history_lines=${config.context_history_lines})`
-    : 'off';
-  console.log(`  Context collection: ${ctxState}`);
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Settings')}`);
 
+  // Key-value pairs - simple format
+  const entries: [string, string][] = [
+    ['api_key', maskValue(String(config.api_key))],
+    ['provider', config.provider],
+    ['base_url', config.base_url || chalk.gray('(default)') as string],
+    ['model', config.model],
+    ['language', config.language],
+    ['shell', config.shell],
+    ['history_limit', String(config.history_limit)],
+    ['context_enable', String(config.context_enable)],
+    ['context_history_lines', String(config.context_history_lines)],
+  ];
+
+  for (const [key, value] of entries) {
+    const color = key === 'api_key' && config.api_key ? 'yellow' : 'white';
+    const colored = key === 'base_url' && !config.base_url ? chalk.gray(value) : (chalk as any)[color](value);
+    console.log(`${chalk.cyan('│')}  ${chalk.cyan(key.padEnd(20))} ${colored}`);
+  }
+
+  // Health check section
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Health')}`);
+
+  // API Key status
+  if (config.api_key) {
+    status('ok', 'API Key', chalk.gray(maskValue(config.api_key)));
+  } else {
+    status('fail', 'API Key', chalk.gray('run `wts init` to configure'));
+  }
+
+  // Context status
+  if (config.context_enable) {
+    status('ok', 'Context', chalk.gray(`history_lines=${config.context_history_lines}`));
+  } else {
+    status('skip', 'Context', chalk.gray('disabled'));
+  }
+
+  // Shell integration status
   const integ = detectShellIntegrationState();
-  console.log(`  Shell integration: ${integ}`);
+  if (integ.includes('installed')) {
+    const shells = integ.match(/\(([^)]+)\)/)?.[1] || '';
+    status('ok', 'Shell integration', chalk.gray(shells));
+  } else {
+    status('skip', 'Shell integration', chalk.gray('not detected'));
+  }
+
+  footer(`Run ${chalk.cyan('wts init')} to configure, ${chalk.cyan('wts config set <key> <value>')} to update`);
+  console.log();
 }
 
 /** Check common shell rc files for an installed wts integration */
@@ -221,8 +260,8 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
 export function applyPreset(name: string): boolean {
   const preset = PROVIDER_PRESETS[name.toLowerCase()];
   if (!preset) {
-    console.error(`  Unknown provider: ${name}`);
-    console.error(`  Available presets: ${Object.keys(PROVIDER_PRESETS).join(', ')}`);
+    error(`Unknown provider: ${name}`);
+    console.error(`  ${chalk.gray('Available:')} ${Object.keys(PROVIDER_PRESETS).join(', ')}`);
     return false;
   }
 
@@ -232,9 +271,11 @@ export function applyPreset(name: string): boolean {
   config.model = preset.model;
   saveConfig(config);
 
-  console.log(`  ✓ Switched to ${preset.label}`);
-  console.log(`    provider = ${preset.provider}`);
-  console.log(`    base_url = ${preset.base_url || '(default)'}`);
-  console.log(`    model    = ${preset.model}`);
+  console.log();
+  success(`Switched to ${preset.label}`);
+  kvRow('provider', preset.provider);
+  kvRow('base_url', preset.base_url || chalk.gray('(default)'));
+  kvRow('model', preset.model);
+  console.log();
   return true;
 }
