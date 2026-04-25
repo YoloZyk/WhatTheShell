@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { AIClient } from '../core/ai';
 import { detectShell } from '../core/shell';
 import { checkDanger } from '../core/danger';
-import { collectContext } from '../core/context';
+import { collectScaffoldContext } from '../core/scaffoldContext';
 import { SHELL_SCRIPT_EXT } from '../core/prompt';
 import { loadConfig } from '../utils/config';
 import { copyToClipboard } from '../utils/clipboard';
@@ -20,7 +20,7 @@ export async function scaffoldCommand(intent: string, options: ScaffoldOptions):
 
   const client = new AIClient(config.provider, config.api_key, config.model, config.base_url);
   const ctx = config.context_enable
-    ? collectContext({ historyLines: config.context_history_lines })
+    ? collectScaffoldContext({ historyLines: config.context_history_lines })
     : undefined;
 
   console.log();

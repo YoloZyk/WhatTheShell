@@ -1,5 +1,6 @@
 import type { ShellType, DetailLevel, Language, ContextSnapshot } from '../types';
 import { renderContextForPrompt } from './context';
+import { renderScaffoldContextForPrompt, type ScaffoldContext } from './scaffoldContext';
 
 function ctxPrefix(ctx?: ContextSnapshot): string {
   if (!ctx) return '';
@@ -133,7 +134,7 @@ export function buildScaffoldPrompt(
   intent: string,
   shell: ShellType,
   language: Language,
-  ctx?: ContextSnapshot,
+  ctx?: ScaffoldContext,
 ): string {
   const lang = language === 'zh' ? '中文' : 'English';
   const style = SHELL_STYLE_HINTS[shell];
@@ -148,7 +149,9 @@ export function buildScaffoldPrompt(
     ? "Begin the script body with `$ErrorActionPreference = 'Stop'` so failed steps abort the run."
     : 'Add early-exit checks (e.g. `or return 1`) when steps depend on each other.';
 
-  return `${ctxPrefix(ctx)}You are a project scaffolding expert. The user describes a setup goal — usually creating files or initializing a small project. Generate a ${shell} script that the user will SAVE, REVIEW, and ADAPT before running. Favor inline file creation via heredoc/here-string over external tooling so the user can see and edit every byte that goes into the project.
+  const prefix = ctx ? renderScaffoldContextForPrompt(ctx) + '\n\n' : '';
+
+  return `${prefix}You are a project scaffolding expert. The user describes a setup goal — usually creating files or initializing a small project. Generate a ${shell} script that the user will SAVE, REVIEW, and ADAPT before running. Favor inline file creation via heredoc/here-string over external tooling so the user can see and edit every byte that goes into the project.
 
 Rules:
 - Target shell: ${shell}

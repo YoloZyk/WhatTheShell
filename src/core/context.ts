@@ -28,7 +28,8 @@ export function collectContext(opts: CollectContextOptions = {}): ContextSnapsho
   };
 }
 
-function safe<T>(fn: () => T): T | undefined {
+/** Silent try/catch helper. Exported for use by scaffoldContext.ts. */
+export function safe<T>(fn: () => T): T | undefined {
   try {
     return fn();
   } catch {

@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot } from '../types';
 import { buildGeneratePrompt, buildExplainPrompt, buildAskPrompt, buildScaffoldPrompt } from './prompt';
+import type { ScaffoldContext } from './scaffoldContext';
 
 export class AIClient {
   private provider: AIProvider;
@@ -82,7 +83,7 @@ export class AIClient {
   }
 
   /** Generate a multi-step scaffolding script (file creation, project init). */
-  async scaffold(intent: string, shell: ShellType, language: Language, ctx?: ContextSnapshot): Promise<GenerateResult> {
+  async scaffold(intent: string, shell: ShellType, language: Language, ctx?: ScaffoldContext): Promise<GenerateResult> {
     const prompt = buildScaffoldPrompt(intent, shell, language, ctx);
     const raw = await this.chat(prompt);
     return parseScaffoldResponse(raw);
