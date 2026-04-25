@@ -14,7 +14,7 @@ const TYPE_COLORS: Record<HistoryEntry['type'], (s: string) => string> = {
   generate: chalk.green,
   explain: chalk.cyan,
   ask: chalk.magenta,
-  script: chalk.blue,
+  script: chalk.hex('#ff8c00'),
 };
 
 export async function historyCommand(options: { clear?: boolean }): Promise<void> {

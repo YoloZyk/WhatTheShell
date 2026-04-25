@@ -166,7 +166,7 @@ export async function displayScript(script: string, risk: RiskLevel, warning?: s
                    chalk.cyan;
   const labelFn = risk === 'danger' ? chalk.bgRed.white.bold :
                   risk === 'warning' ? chalk.bgYellow.black.bold :
-                  chalk.blue;
+                  chalk.hex('#ff8c00');
   const warnFn = risk === 'danger' ? chalk.red :
                  risk === 'warning' ? chalk.yellow :
                  chalk.white;

@@ -158,6 +158,7 @@ function parseScriptResponse(raw: string): GenerateResult {
   let lines = raw.split('\n');
   let risk: RiskLevel = 'safe';
   let warning: string | undefined;
+  let inEnvelope = false;
 
   // Defensive: some models emit a "draft" script BEFORE the [DANGER]/[CAUTION]
   // envelope tag and then re-emit the body inside the envelope. Search for the
@@ -173,17 +174,26 @@ function parseScriptResponse(raw: string): GenerateResult {
   if (envelopeIdx >= 0) {
     risk = envelopeRisk;
     lines = lines.slice(envelopeIdx + 1);
+    inEnvelope = true;
   }
 
-  // Pull out [WARNING] lines from anywhere, keep everything else verbatim.
+  // Body cleanup:
+  //  - Drop stray markdown fence markers (```bash / ``` etc.) anywhere in the
+  //    body. stripMarkdownFence above only handles fences that wrap the WHOLE
+  //    response; reasoning models sometimes wrap the script INSIDE the
+  //    [DANGER]...[WARNING] envelope, which slips past the outer strip.
+  //  - Pull out [WARNING] lines ONLY when an envelope was matched. In safe
+  //    mode, a literal `echo "[WARNING] ..."` is legitimate script content
+  //    and must not be stripped.
   const bodyLines: string[] = [];
   for (const line of lines) {
-    if (line.trim().startsWith('[WARNING]')) {
+    if (/^\s*```[a-zA-Z0-9_-]*\s*$/.test(line)) continue;
+    if (inEnvelope && line.trim().startsWith('[WARNING]')) {
       const w = line.trim().replace('[WARNING]', '').trim();
       warning = warning ? warning + '; ' + w : w;
-    } else {
-      bodyLines.push(line);
+      continue;
     }
+    bodyLines.push(line);
   }
 
   // Trim only leading/trailing blank lines; preserve indentation + internal blanks.

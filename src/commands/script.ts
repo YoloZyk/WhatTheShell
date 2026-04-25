@@ -27,7 +27,7 @@ export async function scriptCommand(intent: string, options: ScriptOptions): Pro
     : undefined;
 
   console.log();
-  console.log(`${chalk.cyan('┌─')} ${chalk.blue('[script]')} ${chalk.gray('─'.repeat(48))}`);
+  console.log(`${chalk.cyan('┌─')} ${chalk.hex('#ff8c00')('[script]')} ${chalk.gray('─'.repeat(48))}`);
   console.log(`${chalk.cyan('│')}  ${chalk.gray('>')} ${chalk.white(intent)}`);
   console.log(`${chalk.cyan('│')}  ${chalk.gray('shell:')} ${chalk.cyan(shell)}`);
   console.log(`${chalk.cyan('├─')} ${chalk.gray('─'.repeat(56))}`);
@@ -38,7 +38,7 @@ export async function scriptCommand(intent: string, options: ScriptOptions): Pro
     const result = await client.script(intent, shell, config.language, ctx);
     spinner.stop();
 
-    const { risk, warning } = aggregateRisk(result.command, result.risk, result.warning, config.language);
+    const { risk, warning } = aggregateRisk(result.command, shell, result.risk, result.warning, config.language);
     await displayScript(result.command, risk, warning);
 
     addHistory({ type: 'script', input: intent, output: result.command });
@@ -71,26 +71,25 @@ export async function runScript(script: string, shell: ShellType): Promise<void>
 
 function aggregateRisk(
   script: string,
+  shell: ShellType,
   modelRisk: RiskLevel,
   modelWarning: string | undefined,
   language: 'zh' | 'en',
 ): { risk: RiskLevel; warning?: string } {
-  // Per-line scan: skip blanks and comment lines
-  const lines = script.split('\n');
   let highest: RiskLevel = modelRisk;
   const warnings: string[] = [];
   if (modelWarning) warnings.push(modelWarning);
 
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+  for (const { line, lineNum } of executableLines(script, shell)) {
+    const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     const c = checkDanger(trimmed, language);
     if (c.risk === 'danger') {
       highest = 'danger';
-      if (c.warnings.length > 0) warnings.push(`L${i + 1}: ${c.warnings.join('; ')}`);
+      if (c.warnings.length > 0) warnings.push(`L${lineNum}: ${c.warnings.join('; ')}`);
     } else if (c.risk === 'warning' && highest !== 'danger') {
       highest = 'warning';
-      if (c.warnings.length > 0) warnings.push(`L${i + 1}: ${c.warnings.join('; ')}`);
+      if (c.warnings.length > 0) warnings.push(`L${lineNum}: ${c.warnings.join('; ')}`);
     }
   }
 
@@ -98,6 +97,63 @@ function aggregateRisk(
     risk: highest,
     warning: warnings.length > 0 ? warnings.join(' · ') : undefined,
   };
+}
+
+/**
+ * Yield script lines that are actual command lines (not heredoc/here-string
+ * payloads). Bash/zsh `<<EOF...EOF` bodies and PowerShell `@'...'@` /
+ * `@"..."@` bodies carry file content, not commands — danger rules must NOT
+ * fire on them, otherwise scaffolding a README that mentions `rm -rf /` as a
+ * warning would mark the whole script dangerous and hide the Run button.
+ *
+ * The opener line is yielded (it carries `cat > foo <<'EOF'` etc. which IS a
+ * command and may itself need scanning). The closing delimiter line is
+ * skipped — it's just `EOF` / `'@`.
+ */
+function* executableLines(script: string, shell: ShellType): Generator<{ line: string; lineNum: number }> {
+  const lines = script.split('\n');
+  let bashHeredoc: { delim: string; allowTabs: boolean } | null = null;
+  let psHereQuote: '"' | "'" | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Inside bash/zsh heredoc body — wait for closing delimiter, skip content.
+    if (bashHeredoc) {
+      const candidate = bashHeredoc.allowTabs ? line.replace(/^\t+/, '') : line;
+      if (candidate === bashHeredoc.delim) bashHeredoc = null;
+      continue;
+    }
+
+    // Inside PowerShell here-string body — wait for `'@ or `"@ at line start.
+    if (psHereQuote) {
+      const closer = psHereQuote === "'" ? /^\s*'@/ : /^\s*"@/;
+      if (closer.test(line)) psHereQuote = null;
+      continue;
+    }
+
+    // Detect bash/zsh heredoc opener; yield the OPEN line (it carries a command).
+    if (shell === 'bash' || shell === 'zsh') {
+      const m = line.match(/<<(-?)\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?/);
+      if (m) {
+        bashHeredoc = { delim: m[2], allowTabs: m[1] === '-' };
+        yield { line, lineNum: i + 1 };
+        continue;
+      }
+    }
+
+    // Detect PowerShell here-string opener; yield the OPEN line.
+    if (shell === 'powershell') {
+      const m = line.match(/@(['"])\s*$/);
+      if (m) {
+        psHereQuote = m[1] as '"' | "'";
+        yield { line, lineNum: i + 1 };
+        continue;
+      }
+    }
+
+    yield { line, lineNum: i + 1 };
+  }
 }
 
 async function interactiveScriptMenu(script: string, risk: RiskLevel, shell: ShellType): Promise<void> {
