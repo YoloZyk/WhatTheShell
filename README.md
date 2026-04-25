@@ -18,6 +18,8 @@
   - [`wts generate`](#wts-generate)
   - [`wts explain`](#wts-explain)
   - [`wts ask`](#wts-ask)
+  - [`wts scaffold`](#wts-scaffold)
+  - [`wts history`](#wts-history)
 - [Shell integration](#shell-integration)
 - [Context awareness](#context-awareness)
 - [Providers](#providers)
@@ -32,7 +34,7 @@
 ## Highlights
 
 - **Press `Ctrl+G` anywhere on the command line** — type what you want, the AI rewrites the current buffer. Nothing is executed until you hit Enter.
-- **Three standalone subcommands** for when you want an explicit flow: `generate`, `explain`, `ask`.
+- **Five subcommands** for different workflows: `generate`, `explain`, `ask`, `scaffold`, `history`.
 - **Context-aware prompts** — `wts` injects your project markers (`package.json`, `Cargo.toml`, `go.mod`, …), current git status, and recent shell history so generated commands match your actual repo.
 - **10 built-in provider presets** — OpenAI, Anthropic, Qwen, DeepSeek, Kimi, Zhipu, Baichuan, Yi, MiniMax, SiliconFlow. Any OpenAI-compatible endpoint also works.
 - **Local safety rules** block `rm -rf`, `dd of=`, `mkfs`, `> /dev/sd*`, `chmod 777 /`, and similar patterns before they ever reach your shell.
@@ -83,7 +85,7 @@ The primary workflow in v0.2. Type a partial command, press `Ctrl+G`, describe w
 ```
 $ find . -name "*.log" | █          ← cursor here, press Ctrl+G
 
-wts > keep only the last 7 days
+[WhatTheShell] > keep only the last 7 days
 
 wts: thinking...
 ↓
@@ -109,7 +111,7 @@ $ wts generate "find all files over 100 MB, sorted by size"
 
 find . -type f -size +100M -exec ls -lhS {} + | sort -k5 -h
 
-  > [R]un  [C]opy  [E]dit  [Q]uit
+  > [R]un  [C]opy  [Q]uit
 ```
 
 | Option | Description |
@@ -152,6 +154,28 @@ wts ask "when should I use xargs vs. -exec in find?"
 ```
 
 Alias: `wts a`.
+
+### `wts scaffold`
+
+Generate project scaffolding (Dockerfile, .gitignore, etc.) with deep awareness of your project's ecosystem (Node.js, Python, Go, Rust, etc.).
+
+```bash
+wts scaffold "write a Dockerfile for this project"
+wts scaffold "add a .gitignore for node and vscode"
+```
+
+The output is shown for review; you save, copy, or adapt before running anything.
+
+### `wts history`
+
+Browse and replay your command history in an interactive picker.
+
+```bash
+wts history          # interactive search with type-colored entries
+wts history --clear # wipe the log
+```
+
+Use arrow keys to navigate, Enter to replay a generate entry.
 
 ---
 
@@ -259,6 +283,7 @@ Config lives at `~/.wts/config.toml`.
 | Key | Values | Default |
 |-----|--------|---------|
 | `api_key` | Your API key | *(empty)* |
+| `preset` | Provider preset name | `openai` |
 | `provider` | `openai`, `anthropic` | `openai` |
 | `base_url` | Custom API endpoint | *(provider default)* |
 | `model` | Model name | `gpt-4o` |
@@ -291,9 +316,11 @@ wts config set <key> <value>   # update a single key
 `wts` keeps a local log of your calls at `~/.wts/history.json`.
 
 ```bash
-wts history          # show recent entries
+wts history          # interactive search (TTY) or list (pipe)
 wts history --clear  # wipe the log
 ```
+
+Type to filter, arrow keys to navigate, Enter to replay a generate entry.
 
 ---
 
