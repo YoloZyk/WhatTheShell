@@ -5,13 +5,16 @@ import { getHistory, clearHistory, searchHistory } from '../utils/history';
 import { displaySuccess, displayError } from '../utils/display';
 import { copyToClipboard } from '../utils/clipboard';
 import { runCommand } from './generate';
+import { runScript } from './script';
 import { checkDanger } from '../core/danger';
 import { loadConfig } from '../utils/config';
+import { detectShell } from '../core/shell';
 
 const TYPE_COLORS: Record<HistoryEntry['type'], (s: string) => string> = {
   generate: chalk.green,
   explain: chalk.cyan,
   ask: chalk.magenta,
+  script: chalk.blue,
 };
 
 export async function historyCommand(options: { clear?: boolean }): Promise<void> {
@@ -82,13 +85,16 @@ function formatRow(entry: HistoryEntry): string {
 function showDetailPanel(entry: HistoryEntry): void {
   const config = loadConfig();
 
-  // generate: stored output IS the command. explain: input is the command being explained.
-  // ask: free-form Q&A, no command involved.
+  // generate: stored output IS the command. script: stored output IS the script body.
+  // explain: input is the command being explained. ask: free-form Q&A, no command involved.
   let risk: RiskLevel = 'safe';
   let warning: string | undefined;
-  if (entry.type === 'generate' || entry.type === 'explain') {
-    const target = entry.type === 'generate' ? entry.output : entry.input;
-    const check = checkDanger(target, config.language);
+  if (entry.type === 'generate' || entry.type === 'script') {
+    const check = checkDanger(entry.output, config.language);
+    risk = check.risk;
+    if (check.warnings.length > 0) warning = check.warnings.join('; ');
+  } else if (entry.type === 'explain') {
+    const check = checkDanger(entry.input, config.language);
     risk = check.risk;
     if (check.warnings.length > 0) warning = check.warnings.join('; ');
   }
@@ -118,11 +124,20 @@ function showDetailPanel(entry: HistoryEntry): void {
   console.log(`${borderFn('│')}  ${chalk.gray('>')} ${chalk.white(entry.input)}`);
   console.log(`${borderFn('│')}`);
 
-  const outputLabel = entry.type === 'generate' ? 'Command:' : entry.type === 'explain' ? 'Summary:' : 'Answer:';
-  const outputColor = entry.type === 'generate' ? chalk.green.bold : chalk.white;
+  const outputLabel = entry.type === 'generate' ? 'Command:'
+                    : entry.type === 'script' ? 'Script:'
+                    : entry.type === 'explain' ? 'Summary:'
+                    : 'Answer:';
   console.log(`${borderFn('│')}  ${chalk.gray(outputLabel)}`);
   for (const line of entry.output.split('\n')) {
-    console.log(`${borderFn('│')}    ${outputColor(line)}`);
+    let styled: string;
+    if (entry.type === 'script') {
+      const isComment = line.trim().startsWith('#');
+      styled = isComment ? chalk.gray(line) : chalk.green.bold(line);
+    } else {
+      styled = entry.type === 'generate' ? chalk.green.bold(line) : chalk.white(line);
+    }
+    console.log(`${borderFn('│')}    ${styled}`);
   }
 
   console.log(`${borderFn('└─')} ${chalk.gray('─'.repeat(58))}`);
@@ -185,6 +200,15 @@ async function pickAction(entry: HistoryEntry, prompts: any): Promise<string> {
       name: `${chalk.cyan('Copy command')}  ${chalk.gray('to clipboard')}`,
       value: 'copy_output',
     });
+  } else if (entry.type === 'script') {
+    choices.push({
+      name: `${chalk.green('Run again')}     ${chalk.gray('execute the stored script via temp file')}`,
+      value: 'run_script',
+    });
+    choices.push({
+      name: `${chalk.cyan('Copy script')}   ${chalk.gray('to clipboard')}`,
+      value: 'copy_output',
+    });
   } else if (entry.type === 'explain') {
     choices.push({
       name: `${chalk.cyan('Copy command')}  ${chalk.gray('the original input')}`,
@@ -224,6 +248,18 @@ async function applyAction(action: string, entry: HistoryEntry): Promise<void> {
       return;
     }
     await runCommand(entry.output);
+    return;
+  }
+
+  if (action === 'run_script') {
+    const config = loadConfig();
+    const localCheck = checkDanger(entry.output, config.language);
+    if (localCheck.risk === 'danger') {
+      await displayError('This script was flagged dangerous; will not auto-run');
+      return;
+    }
+    const shell = detectShell() || config.shell;
+    await runScript(entry.output, shell);
     return;
   }
 

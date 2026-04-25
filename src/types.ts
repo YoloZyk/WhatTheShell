@@ -49,11 +49,16 @@ export interface ExplainOptions {
   detail?: boolean;
 }
 
+/** script 命令选项 */
+export interface ScriptOptions {
+  shell?: ShellType;
+}
+
 /** 历史记录条目 */
 export interface HistoryEntry {
   id: number;
   timestamp: string;
-  type: 'generate' | 'explain' | 'ask';
+  type: 'generate' | 'explain' | 'ask' | 'script';
   input: string;
   output: string;
 }

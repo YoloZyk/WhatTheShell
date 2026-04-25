@@ -22,6 +22,28 @@ const SHELL_DANGER_EXAMPLES: Record<ShellType, { danger: string; caution: string
   powershell: { danger: 'Remove-Item -Recurse -Force, Format-Volume, Clear-Disk, diskpart, del /s /q, format C:', caution: 'Stop-Computer, Restart-Computer, Set-ExecutionPolicy Unrestricted, iwr ... | iex' },
 };
 
+/** 每种 shell 内嵌文件内容的惯用法 */
+const SHELL_FILE_WRITE_HINTS: Record<ShellType, string> = {
+  bash: "Use heredoc to embed file contents:\n  cat > path/to/file <<'EOF'\n  ...content...\n  EOF",
+  zsh: "Use heredoc to embed file contents:\n  cat > path/to/file <<'EOF'\n  ...content...\n  EOF",
+  fish: "fish has no native heredoc. Use printf '%s\\n' line1 line2 ... > path/to/file, or `string join \\n l1 l2 ... > path/to/file`. Prefer printf for content with special characters.",
+  powershell: "Use a PowerShell here-string with Set-Content:\n  @'\n  ...content...\n  '@ | Set-Content -Path 'path/to/file' -NoNewline",
+};
+
+const SHELL_SHEBANG: Record<ShellType, string> = {
+  bash: '#!/usr/bin/env bash',
+  zsh: '#!/usr/bin/env zsh',
+  fish: '#!/usr/bin/env fish',
+  powershell: '#Requires -Version 5.1',
+};
+
+export const SHELL_SCRIPT_EXT: Record<ShellType, string> = {
+  bash: 'sh',
+  zsh: 'sh',
+  fish: 'fish',
+  powershell: 'ps1',
+};
+
 /** 生成命令的 Prompt */
 export function buildGeneratePrompt(
   description: string,
@@ -104,4 +126,49 @@ Rules:
 - Do not wrap output in code blocks unless showing a command example
 
 Question: ${question}`;
+}
+
+/** 多步脚本生成的 Prompt */
+export function buildScriptPrompt(
+  intent: string,
+  shell: ShellType,
+  language: Language,
+  ctx?: ContextSnapshot,
+): string {
+  const lang = language === 'zh' ? '中文' : 'English';
+  const style = SHELL_STYLE_HINTS[shell];
+  const ex = SHELL_DANGER_EXAMPLES[shell];
+  const fileWriteHint = SHELL_FILE_WRITE_HINTS[shell];
+  const shebang = SHELL_SHEBANG[shell];
+  const ext = SHELL_SCRIPT_EXT[shell];
+
+  const errPragma = (shell === 'bash' || shell === 'zsh')
+    ? 'Begin the script body with `set -euo pipefail` so failed steps abort the run.'
+    : shell === 'powershell'
+    ? "Begin the script body with `$ErrorActionPreference = 'Stop'` so failed steps abort the run."
+    : 'Add early-exit checks (e.g. `or return 1`) when steps depend on each other.';
+
+  return `${ctxPrefix(ctx)}You are a shell scripting expert. The user describes a high-level task that may involve multiple commands and/or creating project files. Generate a single self-contained ${shell} script that accomplishes the task end-to-end.
+
+Rules:
+- Target shell: ${shell}
+- Style: ${style}
+- Output format: ONLY the script body. No prose, no markdown fences, no triple-backticks.
+- First line: shebang \`${shebang}\`
+- Second line: a filename suggestion comment in this exact form:
+  # filename: <slug>.${ext}
+  The slug describes the task in 2-4 words, kebab-case, no path.
+- ${errPragma}
+- Use \`#\` comments to label each major step in ${lang}. Comments should explain *why*, not just restate the command.
+- For file creation, embed file contents inline. ${fileWriteHint}
+- Combine all steps into ONE executable script — the user runs it as a single unit.
+- If environment context is provided above, use it to choose project-appropriate tooling (npm vs cargo vs pip), honor the current git branch, and pick paths that exist.
+- If ANY step is destructive (e.g. ${ex.danger}), the WHOLE script is dangerous. Output the envelope EXACTLY as below, and the script body must NOT appear anywhere outside the envelope (no draft preview, no repetition):
+  [DANGER]
+  <script body, multi-line>
+  [WARNING] <risk description in ${lang}>
+- If any step is mildly risky (e.g. ${ex.caution}), use [CAUTION] in the same envelope. Same rule: no body outside the envelope.
+- For safe scripts, output ONLY the script with no tags.
+
+User task: ${intent}`;
 }

@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot } from '../types';
-import { buildGeneratePrompt, buildExplainPrompt, buildAskPrompt } from './prompt';
+import { buildGeneratePrompt, buildExplainPrompt, buildAskPrompt, buildScriptPrompt } from './prompt';
 
 export class AIClient {
   private provider: AIProvider;
@@ -80,6 +80,13 @@ export class AIClient {
     const raw = await this.chat(prompt);
     return stripReasoningTags(raw);
   }
+
+  /** 生成多步脚本 */
+  async script(intent: string, shell: ShellType, language: Language, ctx?: ContextSnapshot): Promise<GenerateResult> {
+    const prompt = buildScriptPrompt(intent, shell, language, ctx);
+    const raw = await this.chat(prompt);
+    return parseScriptResponse(raw);
+  }
 }
 
 /** 剥掉整段被包进 ```...``` 的 fence，保留内部原文；未匹配到则原样返回 */
@@ -136,6 +143,54 @@ function parseGenerateResponse(raw: string): GenerateResult {
   }
 
   return { command, risk, warning };
+}
+
+/**
+ * Parse a multi-line script response. Unlike parseGenerateResponse this
+ * preserves leading whitespace on every line and keeps internal blank lines —
+ * indentation is load-bearing in heredoc payloads (YAML, Python, Markdown
+ * inside `cat <<'EOF' ... EOF`) and visually meaningful for control-flow blocks.
+ */
+function parseScriptResponse(raw: string): GenerateResult {
+  raw = stripReasoningTags(raw);
+  raw = stripMarkdownFence(raw);
+
+  let lines = raw.split('\n');
+  let risk: RiskLevel = 'safe';
+  let warning: string | undefined;
+
+  // Defensive: some models emit a "draft" script BEFORE the [DANGER]/[CAUTION]
+  // envelope tag and then re-emit the body inside the envelope. Search for the
+  // tag anywhere; if found, discard everything up to and including the tag so
+  // only the post-envelope body remains.
+  let envelopeIdx = -1;
+  let envelopeRisk: RiskLevel = 'safe';
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (t === '[DANGER]') { envelopeIdx = i; envelopeRisk = 'danger'; break; }
+    if (t === '[CAUTION]') { envelopeIdx = i; envelopeRisk = 'warning'; break; }
+  }
+  if (envelopeIdx >= 0) {
+    risk = envelopeRisk;
+    lines = lines.slice(envelopeIdx + 1);
+  }
+
+  // Pull out [WARNING] lines from anywhere, keep everything else verbatim.
+  const bodyLines: string[] = [];
+  for (const line of lines) {
+    if (line.trim().startsWith('[WARNING]')) {
+      const w = line.trim().replace('[WARNING]', '').trim();
+      warning = warning ? warning + '; ' + w : w;
+    } else {
+      bodyLines.push(line);
+    }
+  }
+
+  // Trim only leading/trailing blank lines; preserve indentation + internal blanks.
+  while (bodyLines.length > 0 && bodyLines[0].trim() === '') bodyLines.shift();
+  while (bodyLines.length > 0 && bodyLines[bodyLines.length - 1].trim() === '') bodyLines.pop();
+
+  return { command: bodyLines.join('\n'), risk, warning };
 }
 
 /** 解析 explain 响应 */

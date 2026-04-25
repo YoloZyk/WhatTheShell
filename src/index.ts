@@ -63,6 +63,7 @@ function renderHelp(): void {
     { name: 'generate|g', desc: 'Generate a shell command from natural language' },
     { name: 'explain|e', desc: 'Explain an existing shell command' },
     { name: 'ask|a', desc: 'Free-form Q&A about shells and terminals' },
+    { name: 'script', desc: 'Generate a multi-step shell script (file scaffolding, setup flows)' },
     { name: 'init', desc: 'Interactive setup wizard' },
     { name: 'shell-init', desc: 'Emit shell integration script' },
     { name: 'config', desc: 'Manage configuration' },
@@ -196,6 +197,42 @@ function renderAskHelp(): void {
   console.log();
 }
 
+function renderScriptHelp(): void {
+  console.log();
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold('Script')} ${chalk.gray('─'.repeat(52))}`);
+  console.log(`${chalk.cyan('│')}  Generate a multi-step shell script (file scaffolding, setup flows)`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts script')} ${chalk.cyan('<intent>')} ${chalk.gray('[options]')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('-s, --shell <shell>'.padEnd(22))} ${chalk.gray('Target syntax (bash/zsh/powershell/fish)')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('-h, --help'.padEnd(22))} ${chalk.gray('Display this help')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('When to use')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('• Multi-step setup ("init git repo with main + dev branches")')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('• Project file scaffolding ("write a Dockerfile for this project")')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('• Anything that needs ordered commands or inline file creation')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Interactive menu')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('Run / Save as a file / Copy to clipboard / Cancel')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('Run is hidden when any step is flagged DANGER')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Examples')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts script')} "set up a Node TS project with strict tsconfig"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts script')} "write a Dockerfile for this project"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts script')} "init a git repo with main + dev branches"`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('└─')} ${chalk.gray(`Run ${chalk.cyan('wts --help')} for the full command list`)}`);
+  console.log();
+}
+
 function renderInitHelp(): void {
   console.log();
   console.log(`${chalk.cyan('┌─')} ${chalk.bold('Init')} ${chalk.gray('─'.repeat(54))}`);
@@ -293,7 +330,7 @@ program
 
 // Intercept help before Commander processes it
 const rawArgs = process.argv.slice(2);
-const subcommands = ['generate', 'g', 'explain', 'e', 'ask', 'a', 'init', 'shell-init', 'config', 'history'];
+const subcommands = ['generate', 'g', 'explain', 'e', 'ask', 'a', 'script', 'init', 'shell-init', 'config', 'history'];
 const hasHelpFlag = rawArgs.includes('--help') || rawArgs.includes('-h');
 const matchedSubcmd = rawArgs.find(arg => !arg.startsWith('-') && subcommands.includes(arg));
 
@@ -306,6 +343,9 @@ if (hasHelpFlag) {
     process.exit(0);
   } else if (matchedSubcmd === 'ask' || matchedSubcmd === 'a') {
     renderAskHelp();
+    process.exit(0);
+  } else if (matchedSubcmd === 'script') {
+    renderScriptHelp();
     process.exit(0);
   } else if (matchedSubcmd === 'init') {
     renderInitHelp();
@@ -357,6 +397,16 @@ program
   .description('Free-form Q&A about shells, terminals, and CLI tooling')
   .action(async (question: string) => {
     await askCommand(question);
+  });
+
+// script
+program
+  .command('script <intent>')
+  .description('Generate a multi-step shell script (file scaffolding, setup flows)')
+  .option('-s, --shell <shell>', 'Target shell syntax (bash/zsh/powershell/fish)')
+  .action(async (intent: string, options) => {
+    const { scriptCommand } = await import('./commands/script');
+    await scriptCommand(intent, options);
   });
 
 // init
