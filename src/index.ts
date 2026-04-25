@@ -104,6 +104,99 @@ function renderConfigHelp(): void {
   console.log();
 }
 
+function renderGenerateHelp(): void {
+  console.log();
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold('Generate')} ${chalk.gray('─'.repeat(50))}`);
+  console.log(`${chalk.cyan('│')}  Generate a shell command from natural language`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts generate')} ${chalk.cyan('<description>')} ${chalk.gray('[options]')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts g')} ${chalk.cyan('<description>')} ${chalk.gray('[options]')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
+  const opts = [
+    { flag: '-r, --run', desc: 'Run safe commands right after generating' },
+    { flag: '-c, --copy', desc: 'Copy the result to the clipboard' },
+    { flag: '-s, --shell <shell>', desc: 'Target syntax (bash/zsh/powershell/fish)' },
+    { flag: '--inline', desc: 'Emit bare command to stdout (for integrations)' },
+    { flag: '--buffer <buffer>', desc: 'Current shell buffer (inline mode)' },
+    { flag: '--history-file <path>', desc: 'External history file path' },
+    { flag: '-h, --help', desc: 'Display this help' },
+  ];
+  for (const o of opts) {
+    console.log(`${chalk.cyan('│')}  ${chalk.green(o.flag.padEnd(22))} ${chalk.gray(o.desc)}`);
+  }
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Examples')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts g')} "list the 10 largest files here"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts g')} "kill stale node processes" ${chalk.cyan('-r')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts g')} "deploy" ${chalk.cyan('--shell powershell')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('└─')} ${chalk.gray(`Run ${chalk.cyan('wts --help')} for the full command list`)}`);
+  console.log();
+}
+
+function renderExplainHelp(): void {
+  console.log();
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold('Explain')} ${chalk.gray('─'.repeat(51))}`);
+  console.log(`${chalk.cyan('│')}  Explain an existing shell command`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts explain')} ${chalk.cyan('<command>')} ${chalk.gray('[options]')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} ${chalk.cyan('<command>')} ${chalk.gray('[options]')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
+  const opts = [
+    { flag: '-b, --brief', desc: 'One-sentence summary' },
+    { flag: '-d, --detail', desc: 'Full breakdown including side effects' },
+    { flag: '-h, --help', desc: 'Display this help' },
+  ];
+  for (const o of opts) {
+    console.log(`${chalk.cyan('│')}  ${chalk.green(o.flag.padEnd(14))} ${chalk.gray(o.desc)}`);
+  }
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Examples')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} "git rebase -i HEAD~3"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} "find . -size +10M" ${chalk.cyan('-b')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} "ssh -L 8080:localhost:80 host" ${chalk.cyan('-d')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('└─')} ${chalk.gray(`Run ${chalk.cyan('wts --help')} for the full command list`)}`);
+  console.log();
+}
+
+function renderAskHelp(): void {
+  console.log();
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold('Ask')} ${chalk.gray('─'.repeat(55))}`);
+  console.log(`${chalk.cyan('│')}  Free-form Q&A about shells, terminals, and CLI tooling`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts ask')} ${chalk.cyan('<question>')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} ${chalk.cyan('<question>')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('-h, --help'.padEnd(14))} ${chalk.gray('Display this help')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Examples')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "diff between find and fd"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "why does my zsh hang on git status"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "what does set -e do"`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('└─')} ${chalk.gray(`Run ${chalk.cyan('wts --help')} for the full command list`)}`);
+  console.log();
+}
+
 const program = new Command();
 
 program
@@ -119,12 +212,24 @@ program
 const rawArgs = process.argv.slice(2);
 const subcommands = ['generate', 'g', 'explain', 'e', 'ask', 'a', 'init', 'shell-init', 'config', 'history'];
 const hasHelpFlag = rawArgs.includes('--help') || rawArgs.includes('-h');
-const hasSubcommand = rawArgs.some(arg => !arg.startsWith('-') && subcommands.includes(arg));
+const matchedSubcmd = rawArgs.find(arg => !arg.startsWith('-') && subcommands.includes(arg));
 
-if (hasHelpFlag && !hasSubcommand) {
-  // Suppress Commander's help and show our custom help
-  program.configureOutput({ writeOut: () => {}, writeErr: () => {} });
-  program.exitOverride();
+if (hasHelpFlag) {
+  if (matchedSubcmd === 'generate' || matchedSubcmd === 'g') {
+    renderGenerateHelp();
+    process.exit(0);
+  } else if (matchedSubcmd === 'explain' || matchedSubcmd === 'e') {
+    renderExplainHelp();
+    process.exit(0);
+  } else if (matchedSubcmd === 'ask' || matchedSubcmd === 'a') {
+    renderAskHelp();
+    process.exit(0);
+  } else if (!matchedSubcmd) {
+    // wts --help — suppress Commander's help; renderHelp() runs in the parse catch below
+    program.configureOutput({ writeOut: () => {}, writeErr: () => {} });
+    program.exitOverride();
+  }
+  // init/shell-init/config/history --help fall through to commander (config has its own override)
 }
 
 // generate
@@ -253,7 +358,7 @@ try {
   program.parse(process.argv);
 } catch (err: any) {
   if (err?.code === 'commander.helpDisplayed' || hasHelpFlag) {
-    if (!hasSubcommand) {
+    if (!matchedSubcmd) {
       renderHelp();
     }
     process.exit(0);
