@@ -49,8 +49,8 @@ export interface ExplainOptions {
   detail?: boolean;
 }
 
-/** script 命令选项 */
-export interface ScriptOptions {
+/** scaffold 命令选项 */
+export interface ScaffoldOptions {
   shell?: ShellType;
 }
 
@@ -58,7 +58,12 @@ export interface ScriptOptions {
 export interface HistoryEntry {
   id: number;
   timestamp: string;
-  type: 'generate' | 'explain' | 'ask' | 'script';
+  /**
+   * Entry type. `'script'` is a legacy alias for `'scaffold'` — old entries
+   * on disk from before the rename still carry it; new entries always use
+   * `'scaffold'`. History UI renders both identically.
+   */
+  type: 'generate' | 'explain' | 'ask' | 'script' | 'scaffold';
   input: string;
   output: string;
 }

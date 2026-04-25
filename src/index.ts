@@ -63,7 +63,7 @@ function renderHelp(): void {
     { name: 'generate|g', desc: 'Generate a shell command from natural language' },
     { name: 'explain|e', desc: 'Explain an existing shell command' },
     { name: 'ask|a', desc: 'Free-form Q&A about shells and terminals' },
-    { name: 'script', desc: 'Generate a multi-step shell script (file scaffolding, setup flows)' },
+    { name: 'scaffold', desc: 'Draft a setup script for project files (review and adapt before running)' },
     { name: 'init', desc: 'Interactive setup wizard' },
     { name: 'shell-init', desc: 'Emit shell integration script' },
     { name: 'config', desc: 'Manage configuration' },
@@ -197,14 +197,14 @@ function renderAskHelp(): void {
   console.log();
 }
 
-function renderScriptHelp(): void {
+function renderScaffoldHelp(): void {
   console.log();
-  console.log(`${chalk.cyan('┌─')} ${chalk.bold('Script')} ${chalk.gray('─'.repeat(52))}`);
-  console.log(`${chalk.cyan('│')}  Generate a multi-step shell script (file scaffolding, setup flows)`);
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold('Scaffold')} ${chalk.gray('─'.repeat(50))}`);
+  console.log(`${chalk.cyan('│')}  Draft a setup script for project files — review and adapt before running`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts script')} ${chalk.cyan('<intent>')} ${chalk.gray('[options]')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts scaffold')} ${chalk.cyan('<intent>')} ${chalk.gray('[options]')}`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
@@ -213,20 +213,20 @@ function renderScriptHelp(): void {
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('When to use')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.gray('• Multi-step setup ("init git repo with main + dev branches")')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.gray('• Project file scaffolding ("write a Dockerfile for this project")')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.gray('• Anything that needs ordered commands or inline file creation')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('• File scaffolding ("write a Dockerfile for this project")')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('• Project init flows ("set up Node TS project with strict tsconfig")')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('• Anything that benefits from inspecting the script before running')}`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Interactive menu')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.gray('Run / Save as a file / Copy to clipboard / Cancel')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.gray('Run is hidden when any step is flagged DANGER')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('Save as a file / Copy to clipboard / Cancel')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('Output is meant to be saved and adapted, not run blindly')}`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Examples')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts script')} "set up a Node TS project with strict tsconfig"`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts script')} "write a Dockerfile for this project"`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts script')} "init a git repo with main + dev branches"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts scaffold')} "set up a Node TS project with strict tsconfig"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts scaffold')} "write a Dockerfile for this project"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts scaffold')} "init a git repo with main + dev branches"`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('└─')} ${chalk.gray(`Run ${chalk.cyan('wts --help')} for the full command list`)}`);
@@ -330,7 +330,7 @@ program
 
 // Intercept help before Commander processes it
 const rawArgs = process.argv.slice(2);
-const subcommands = ['generate', 'g', 'explain', 'e', 'ask', 'a', 'script', 'init', 'shell-init', 'config', 'history'];
+const subcommands = ['generate', 'g', 'explain', 'e', 'ask', 'a', 'scaffold', 'init', 'shell-init', 'config', 'history'];
 const hasHelpFlag = rawArgs.includes('--help') || rawArgs.includes('-h');
 const matchedSubcmd = rawArgs.find(arg => !arg.startsWith('-') && subcommands.includes(arg));
 
@@ -344,8 +344,8 @@ if (hasHelpFlag) {
   } else if (matchedSubcmd === 'ask' || matchedSubcmd === 'a') {
     renderAskHelp();
     process.exit(0);
-  } else if (matchedSubcmd === 'script') {
-    renderScriptHelp();
+  } else if (matchedSubcmd === 'scaffold') {
+    renderScaffoldHelp();
     process.exit(0);
   } else if (matchedSubcmd === 'init') {
     renderInitHelp();
@@ -399,14 +399,14 @@ program
     await askCommand(question);
   });
 
-// script
+// scaffold
 program
-  .command('script <intent>')
-  .description('Generate a multi-step shell script (file scaffolding, setup flows)')
+  .command('scaffold <intent>')
+  .description('Draft a setup script for project files (review and adapt before running)')
   .option('-s, --shell <shell>', 'Target shell syntax (bash/zsh/powershell/fish)')
   .action(async (intent: string, options) => {
-    const { scriptCommand } = await import('./commands/script');
-    await scriptCommand(intent, options);
+    const { scaffoldCommand } = await import('./commands/scaffold');
+    await scaffoldCommand(intent, options);
   });
 
 // init

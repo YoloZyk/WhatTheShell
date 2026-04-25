@@ -157,8 +157,8 @@ export async function displayAnswer(answer: string): Promise<void> {
   console.log();
 }
 
-/** 显示生成的多步脚本 */
-export async function displayScript(script: string, risk: RiskLevel, warning?: string): Promise<void> {
+/** 显示生成的多步脚手架脚本 */
+export async function displayScaffold(body: string, risk: RiskLevel, warning?: string): Promise<void> {
   console.log();
 
   const borderFn = risk === 'danger' ? chalk.red :
@@ -171,9 +171,9 @@ export async function displayScript(script: string, risk: RiskLevel, warning?: s
                  risk === 'warning' ? chalk.yellow :
                  chalk.white;
 
-  let label = '[script]';
-  if (risk === 'danger') label = '[script ⚠ DANGER]';
-  else if (risk === 'warning') label = '[script ! CAUTION]';
+  let label = '[scaffold]';
+  if (risk === 'danger') label = '[scaffold ⚠ DANGER]';
+  else if (risk === 'warning') label = '[scaffold ! CAUTION]';
 
   const labelLen = label.length + 4;
   const lineLen = 60 - labelLen;
@@ -186,14 +186,14 @@ export async function displayScript(script: string, risk: RiskLevel, warning?: s
   }
 
   console.log(`${borderFn('│')}`);
-  for (const ln of script.split('\n')) {
+  for (const ln of body.split('\n')) {
     const trimmed = ln.trim();
     const isComment = trimmed.startsWith('#');
     const styled = isComment ? chalk.gray(ln) : chalk.green.bold(ln);
     console.log(`${borderFn('│')}  ${styled}`);
   }
   console.log(`${borderFn('│')}`);
-  console.log(`${borderFn('└─')} ${chalk.gray('Run, save as a file, or copy to clipboard')}`);
+  console.log(`${borderFn('└─')} ${chalk.gray('Save as a file or copy to clipboard')}`);
   console.log();
 }
 

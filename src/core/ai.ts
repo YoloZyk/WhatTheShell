@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot } from '../types';
-import { buildGeneratePrompt, buildExplainPrompt, buildAskPrompt, buildScriptPrompt } from './prompt';
+import { buildGeneratePrompt, buildExplainPrompt, buildAskPrompt, buildScaffoldPrompt } from './prompt';
 
 export class AIClient {
   private provider: AIProvider;
@@ -81,11 +81,11 @@ export class AIClient {
     return stripReasoningTags(raw);
   }
 
-  /** 生成多步脚本 */
-  async script(intent: string, shell: ShellType, language: Language, ctx?: ContextSnapshot): Promise<GenerateResult> {
-    const prompt = buildScriptPrompt(intent, shell, language, ctx);
+  /** Generate a multi-step scaffolding script (file creation, project init). */
+  async scaffold(intent: string, shell: ShellType, language: Language, ctx?: ContextSnapshot): Promise<GenerateResult> {
+    const prompt = buildScaffoldPrompt(intent, shell, language, ctx);
     const raw = await this.chat(prompt);
-    return parseScriptResponse(raw);
+    return parseScaffoldResponse(raw);
   }
 }
 
@@ -146,12 +146,12 @@ function parseGenerateResponse(raw: string): GenerateResult {
 }
 
 /**
- * Parse a multi-line script response. Unlike parseGenerateResponse this
+ * Parse a multi-line scaffold response. Unlike parseGenerateResponse this
  * preserves leading whitespace on every line and keeps internal blank lines —
  * indentation is load-bearing in heredoc payloads (YAML, Python, Markdown
  * inside `cat <<'EOF' ... EOF`) and visually meaningful for control-flow blocks.
  */
-function parseScriptResponse(raw: string): GenerateResult {
+function parseScaffoldResponse(raw: string): GenerateResult {
   raw = stripReasoningTags(raw);
   raw = stripMarkdownFence(raw);
 

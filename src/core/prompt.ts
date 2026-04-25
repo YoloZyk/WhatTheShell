@@ -128,8 +128,8 @@ Rules:
 Question: ${question}`;
 }
 
-/** 多步脚本生成的 Prompt */
-export function buildScriptPrompt(
+/** Multi-step scaffolding prompt (file creation, project init flows) */
+export function buildScaffoldPrompt(
   intent: string,
   shell: ShellType,
   language: Language,
@@ -148,7 +148,7 @@ export function buildScriptPrompt(
     ? "Begin the script body with `$ErrorActionPreference = 'Stop'` so failed steps abort the run."
     : 'Add early-exit checks (e.g. `or return 1`) when steps depend on each other.';
 
-  return `${ctxPrefix(ctx)}You are a shell scripting expert. The user describes a high-level task that may involve multiple commands and/or creating project files. Generate a single self-contained ${shell} script that accomplishes the task end-to-end.
+  return `${ctxPrefix(ctx)}You are a project scaffolding expert. The user describes a setup goal — usually creating files or initializing a small project. Generate a ${shell} script that the user will SAVE, REVIEW, and ADAPT before running. Favor inline file creation via heredoc/here-string over external tooling so the user can see and edit every byte that goes into the project.
 
 Rules:
 - Target shell: ${shell}
@@ -157,18 +157,18 @@ Rules:
 - First line: shebang \`${shebang}\`
 - Second line: a filename suggestion comment in this exact form:
   # filename: <slug>.${ext}
-  The slug describes the task in 2-4 words, kebab-case, no path.
+  The slug describes the goal in 2-4 words, kebab-case, no path.
 - ${errPragma}
-- Use \`#\` comments to label each major step in ${lang}. Comments should explain *why*, not just restate the command.
+- Use \`#\` comments to label each major step in ${lang}. Comments should explain *why* (so the user can decide whether to keep that step), not just restate the command.
 - For file creation, embed file contents inline. ${fileWriteHint}
-- Combine all steps into ONE executable script — the user runs it as a single unit.
-- If environment context is provided above, use it to choose project-appropriate tooling (npm vs cargo vs pip), honor the current git branch, and pick paths that exist.
+- The user will save this and probably tweak file paths, package names, ports, env vars before running. Keep these adaptable: use clearly-labeled placeholders (e.g. \`PROJECT_NAME=my-app\`) at the top instead of hardcoding deep in the body.
+- If environment context is provided above, use it to choose project-appropriate tooling (npm vs cargo vs pip), match existing conventions, and pick paths that fit. Do NOT overwrite files the user already has unless the goal explicitly says so.
 - If ANY step is destructive (e.g. ${ex.danger}), the WHOLE script is dangerous. Output the envelope EXACTLY as below, and the script body must NOT appear anywhere outside the envelope (no draft preview, no repetition):
   [DANGER]
   <script body, multi-line>
   [WARNING] <risk description in ${lang}>
 - If any step is mildly risky (e.g. ${ex.caution}), use [CAUTION] in the same envelope. Same rule: no body outside the envelope.
-- For safe scripts, output ONLY the script with no tags.
+- For safe scaffolds, output ONLY the script with no tags.
 
-User task: ${intent}`;
+User goal: ${intent}`;
 }

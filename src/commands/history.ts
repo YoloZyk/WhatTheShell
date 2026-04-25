@@ -5,17 +5,24 @@ import { getHistory, clearHistory, searchHistory } from '../utils/history';
 import { displaySuccess, displayError } from '../utils/display';
 import { copyToClipboard } from '../utils/clipboard';
 import { runCommand } from './generate';
-import { runScript } from './script';
 import { checkDanger } from '../core/danger';
 import { loadConfig } from '../utils/config';
-import { detectShell } from '../core/shell';
+
+const SCAFFOLD_COLOR = chalk.hex('#ff8c00');
 
 const TYPE_COLORS: Record<HistoryEntry['type'], (s: string) => string> = {
   generate: chalk.green,
   explain: chalk.cyan,
   ask: chalk.magenta,
-  script: chalk.hex('#ff8c00'),
+  scaffold: SCAFFOLD_COLOR,
+  // Legacy alias — entries written before the script→scaffold rename. Same color.
+  script: SCAFFOLD_COLOR,
 };
+
+/** Display label for a history entry type — collapses legacy 'script' onto 'scaffold'. */
+function typeLabel(type: HistoryEntry['type']): string {
+  return type === 'script' ? 'scaffold' : type;
+}
 
 export async function historyCommand(options: { clear?: boolean }): Promise<void> {
   if (options.clear) {
@@ -55,7 +62,7 @@ function renderStaticList(entries: HistoryEntry[]): void {
   console.log(`${chalk.cyan('┌─')} ${chalk.bold('History')} ${chalk.gray('─'.repeat(54))}`);
   for (const entry of reversed) {
     const typeFn = TYPE_COLORS[entry.type] || chalk.white;
-    const typeRaw = `[${entry.type}]`.padEnd(11);
+    const typeRaw = `[${typeLabel(entry.type)}]`.padEnd(11);
     const inputRaw = visualTruncate(entry.input, 50);
     console.log(`${chalk.cyan('│')}  ${typeFn(typeRaw)} ${chalk.gray(inputRaw)}`);
   }
@@ -73,7 +80,7 @@ function renderHeader(total: number): void {
 
 function formatRow(entry: HistoryEntry): string {
   const typeFn = TYPE_COLORS[entry.type] || chalk.white;
-  const typeRaw = `[${entry.type}]`.padEnd(11);
+  const typeRaw = `[${typeLabel(entry.type)}]`.padEnd(11);
   const inputRaw = visualPadEnd(visualTruncate(entry.input, 38), 40);
   const timeRaw = relativeTime(entry.timestamp).padEnd(13);
   const previewRaw = visualTruncate(entry.output.replace(/\s+/g, ' '), 35);
@@ -84,12 +91,13 @@ function formatRow(entry: HistoryEntry): string {
 
 function showDetailPanel(entry: HistoryEntry): void {
   const config = loadConfig();
+  const isScaffold = entry.type === 'scaffold' || entry.type === 'script';
 
-  // generate: stored output IS the command. script: stored output IS the script body.
+  // generate: stored output IS the command. scaffold/script: stored output IS the script body.
   // explain: input is the command being explained. ask: free-form Q&A, no command involved.
   let risk: RiskLevel = 'safe';
   let warning: string | undefined;
-  if (entry.type === 'generate' || entry.type === 'script') {
+  if (entry.type === 'generate' || isScaffold) {
     const check = checkDanger(entry.output, config.language);
     risk = check.risk;
     if (check.warnings.length > 0) warning = check.warnings.join('; ');
@@ -109,7 +117,7 @@ function showDetailPanel(entry: HistoryEntry): void {
                : risk === 'warning' ? chalk.yellow
                : chalk.white;
 
-  let headerLabel = `${entry.type} · ${relativeTime(entry.timestamp)}`;
+  let headerLabel = `${typeLabel(entry.type)} · ${relativeTime(entry.timestamp)}`;
   if (risk === 'danger') headerLabel += ' ⚠ DANGER';
   else if (risk === 'warning') headerLabel += ' ! CAUTION';
 
@@ -125,13 +133,13 @@ function showDetailPanel(entry: HistoryEntry): void {
   console.log(`${borderFn('│')}`);
 
   const outputLabel = entry.type === 'generate' ? 'Command:'
-                    : entry.type === 'script' ? 'Script:'
+                    : isScaffold ? 'Scaffold:'
                     : entry.type === 'explain' ? 'Summary:'
                     : 'Answer:';
   console.log(`${borderFn('│')}  ${chalk.gray(outputLabel)}`);
   for (const line of entry.output.split('\n')) {
     let styled: string;
-    if (entry.type === 'script') {
+    if (isScaffold) {
       const isComment = line.trim().startsWith('#');
       styled = isComment ? chalk.gray(line) : chalk.green.bold(line);
     } else {
@@ -200,13 +208,9 @@ async function pickAction(entry: HistoryEntry, prompts: any): Promise<string> {
       name: `${chalk.cyan('Copy command')}  ${chalk.gray('to clipboard')}`,
       value: 'copy_output',
     });
-  } else if (entry.type === 'script') {
+  } else if (entry.type === 'scaffold' || entry.type === 'script') {
     choices.push({
-      name: `${chalk.green('Run again')}     ${chalk.gray('execute the stored script via temp file')}`,
-      value: 'run_script',
-    });
-    choices.push({
-      name: `${chalk.cyan('Copy script')}   ${chalk.gray('to clipboard')}`,
+      name: `${chalk.cyan('Copy scaffold')} ${chalk.gray('to clipboard')}`,
       value: 'copy_output',
     });
   } else if (entry.type === 'explain') {
@@ -248,18 +252,6 @@ async function applyAction(action: string, entry: HistoryEntry): Promise<void> {
       return;
     }
     await runCommand(entry.output);
-    return;
-  }
-
-  if (action === 'run_script') {
-    const config = loadConfig();
-    const localCheck = checkDanger(entry.output, config.language);
-    if (localCheck.risk === 'danger') {
-      await displayError('This script was flagged dangerous; will not auto-run');
-      return;
-    }
-    const shell = detectShell() || config.shell;
-    await runScript(entry.output, shell);
     return;
   }
 

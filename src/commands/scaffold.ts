@@ -1,9 +1,6 @@
-import type { ScriptOptions, ShellType, RiskLevel } from '../types';
+import type { ScaffoldOptions, ShellType, RiskLevel } from '../types';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
-import * as crypto from 'crypto';
-import { exec } from 'child_process';
 import chalk from 'chalk';
 import { AIClient } from '../core/ai';
 import { detectShell } from '../core/shell';
@@ -13,10 +10,10 @@ import { SHELL_SCRIPT_EXT } from '../core/prompt';
 import { loadConfig } from '../utils/config';
 import { copyToClipboard } from '../utils/clipboard';
 import { addHistory } from '../utils/history';
-import { displayScript, displayError, displaySuccess, startSpinner } from '../utils/display';
+import { displayScaffold, displayError, displaySuccess, startSpinner } from '../utils/display';
 import { ensureApiKey } from './init';
 
-export async function scriptCommand(intent: string, options: ScriptOptions): Promise<void> {
+export async function scaffoldCommand(intent: string, options: ScaffoldOptions): Promise<void> {
   if (!(await ensureApiKey({ inline: false }))) return;
   const config = loadConfig();
   const shell: ShellType = options.shell || detectShell() || config.shell;
@@ -27,50 +24,33 @@ export async function scriptCommand(intent: string, options: ScriptOptions): Pro
     : undefined;
 
   console.log();
-  console.log(`${chalk.cyan('┌─')} ${chalk.hex('#ff8c00')('[script]')} ${chalk.gray('─'.repeat(48))}`);
+  console.log(`${chalk.cyan('┌─')} ${chalk.hex('#ff8c00')('[scaffold]')} ${chalk.gray('─'.repeat(46))}`);
   console.log(`${chalk.cyan('│')}  ${chalk.gray('>')} ${chalk.white(intent)}`);
   console.log(`${chalk.cyan('│')}  ${chalk.gray('shell:')} ${chalk.cyan(shell)}`);
   console.log(`${chalk.cyan('├─')} ${chalk.gray('─'.repeat(56))}`);
 
-  const spinner = await startSpinner('Planning...');
+  const spinner = await startSpinner('Drafting...');
 
   try {
-    const result = await client.script(intent, shell, config.language, ctx);
+    const result = await client.scaffold(intent, shell, config.language, ctx);
     spinner.stop();
 
     const { risk, warning } = aggregateRisk(result.command, shell, result.risk, result.warning, config.language);
-    await displayScript(result.command, risk, warning);
+    await displayScaffold(result.command, risk, warning);
 
-    addHistory({ type: 'script', input: intent, output: result.command });
+    addHistory({ type: 'scaffold', input: intent, output: result.command });
 
-    await interactiveScriptMenu(result.command, risk, shell);
+    await interactiveScaffoldMenu(result.command, shell);
   } catch (err: any) {
     spinner.stop();
-    await displayError(err.message || 'Failed to generate script');
-  }
-}
-
-/** Run a stored script (used by history "Run again" for type=script entries). */
-export async function runScript(script: string, shell: ShellType): Promise<void> {
-  const ext = SHELL_SCRIPT_EXT[shell] || 'sh';
-  const tmpFile = path.join(os.tmpdir(), `wts-script-${crypto.randomBytes(4).toString('hex')}.${ext}`);
-
-  fs.writeFileSync(tmpFile, script, 'utf-8');
-  if (process.platform !== 'win32') {
-    try { fs.chmodSync(tmpFile, 0o755); } catch { /* ignore */ }
-  }
-
-  try {
-    await execScriptFile(tmpFile, shell);
-  } finally {
-    try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+    await displayError(err.message || 'Failed to generate scaffold');
   }
 }
 
 // ---------- internals ----------
 
 function aggregateRisk(
-  script: string,
+  body: string,
   shell: ShellType,
   modelRisk: RiskLevel,
   modelWarning: string | undefined,
@@ -80,7 +60,7 @@ function aggregateRisk(
   const warnings: string[] = [];
   if (modelWarning) warnings.push(modelWarning);
 
-  for (const { line, lineNum } of executableLines(script, shell)) {
+  for (const { line, lineNum } of executableLines(body, shell)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     const c = checkDanger(trimmed, language);
@@ -104,14 +84,14 @@ function aggregateRisk(
  * payloads). Bash/zsh `<<EOF...EOF` bodies and PowerShell `@'...'@` /
  * `@"..."@` bodies carry file content, not commands — danger rules must NOT
  * fire on them, otherwise scaffolding a README that mentions `rm -rf /` as a
- * warning would mark the whole script dangerous and hide the Run button.
+ * warning would mark the whole scaffold dangerous.
  *
  * The opener line is yielded (it carries `cat > foo <<'EOF'` etc. which IS a
  * command and may itself need scanning). The closing delimiter line is
  * skipped — it's just `EOF` / `'@`.
  */
-function* executableLines(script: string, shell: ShellType): Generator<{ line: string; lineNum: number }> {
-  const lines = script.split('\n');
+function* executableLines(body: string, shell: ShellType): Generator<{ line: string; lineNum: number }> {
+  const lines = body.split('\n');
   let bashHeredoc: { delim: string; allowTabs: boolean } | null = null;
   let psHereQuote: '"' | "'" | null = null;
 
@@ -156,11 +136,10 @@ function* executableLines(script: string, shell: ShellType): Generator<{ line: s
   }
 }
 
-async function interactiveScriptMenu(script: string, risk: RiskLevel, shell: ShellType): Promise<void> {
+async function interactiveScaffoldMenu(body: string, shell: ShellType): Promise<void> {
   const prompts = await import('@inquirer/prompts');
 
   const choices = [
-    ...(risk !== 'danger' ? [{ name: `${chalk.green('Run')} the script`, value: 'run' }] : []),
     { name: `${chalk.cyan('Save')} as a file`, value: 'save' },
     { name: `${chalk.yellow('Copy')} to clipboard`, value: 'copy' },
     { name: chalk.gray('Cancel'), value: 'cancel' },
@@ -183,14 +162,11 @@ async function interactiveScriptMenu(script: string, risk: RiskLevel, shell: She
   }
 
   switch (action) {
-    case 'run':
-      await runScript(script, shell);
-      break;
     case 'save':
-      await saveScript(script, shell, prompts);
+      await saveScaffold(body, shell, prompts);
       break;
     case 'copy': {
-      const ok = await copyToClipboard(script);
+      const ok = await copyToClipboard(body);
       if (ok) await displaySuccess('Copied to clipboard');
       else await displayError('Failed to copy to clipboard');
       break;
@@ -204,10 +180,10 @@ async function interactiveScriptMenu(script: string, risk: RiskLevel, shell: She
   }
 }
 
-async function saveScript(script: string, shell: ShellType, prompts: any): Promise<void> {
+async function saveScaffold(body: string, shell: ShellType, prompts: any): Promise<void> {
   const ext = SHELL_SCRIPT_EXT[shell] || 'sh';
-  const hint = extractFilenameHint(script);
-  const defaultName = hint || `wts-script.${ext}`;
+  const hint = extractFilenameHint(body);
+  const defaultName = hint || `wts-scaffold.${ext}`;
 
   let filename: string;
   try {
@@ -251,7 +227,7 @@ async function saveScript(script: string, shell: ShellType, prompts: any): Promi
   }
 
   try {
-    fs.writeFileSync(target, script, 'utf-8');
+    fs.writeFileSync(target, body, 'utf-8');
     if (process.platform !== 'win32') {
       try { fs.chmodSync(target, 0o755); } catch { /* ignore */ }
     }
@@ -261,44 +237,9 @@ async function saveScript(script: string, shell: ShellType, prompts: any): Promi
   }
 }
 
-function execScriptFile(filepath: string, shell: ShellType): Promise<void> {
-  return new Promise((resolve) => {
-    console.log();
-    let cmd: string;
-
-    if (process.platform === 'win32') {
-      const m: Record<string, string> = {
-        powershell: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${filepath}"`,
-        bash: `bash.exe "${filepath}"`,
-        zsh: `zsh "${filepath}"`,
-        fish: `fish "${filepath}"`,
-      };
-      cmd = m[shell] || m.powershell;
-    } else {
-      const m: Record<string, string> = {
-        bash: `bash "${filepath}"`,
-        zsh: `zsh "${filepath}"`,
-        fish: `fish "${filepath}"`,
-        powershell: `pwsh -NoProfile -File "${filepath}"`,
-      };
-      cmd = m[shell] || m.bash;
-    }
-
-    const child = exec(cmd, (error, stdout, stderr) => {
-      if (error) console.error(`\n  ${error.message}`);
-      if (stdout) process.stdout.write(stdout);
-      if (stderr) process.stderr.write(stderr);
-    });
-    child.on('close', (code) => {
-      if (code !== 0) console.error(`\n  Exit code: ${code}`);
-      resolve();
-    });
-  });
-}
-
-function extractFilenameHint(script: string): string | undefined {
+function extractFilenameHint(body: string): string | undefined {
   // Match "# filename: foo.sh" anywhere in the first 5 lines (shebang occupies line 1).
-  const head = script.split('\n').slice(0, 5).join('\n');
+  const head = body.split('\n').slice(0, 5).join('\n');
   const m = head.match(/^\s*#\s*filename:\s*(\S+)/m);
   return m ? m[1] : undefined;
 }
