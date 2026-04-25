@@ -31,7 +31,7 @@ const LINES: string[] = [
   '',
   '  # Print "wts > " directly on the line readline just wiped — no leading',
   '  # newline, otherwise the wiped prompt row would stay visible as a blank.',
-  '  IFS= read -r -p "wts > " intent </dev/tty',
+`  IFS= read -r -p $'\x1b[36m[WhatTheShell]\x1b[0m > ' intent </dev/tty`,
   '  _read_rc=$?',
   '',
   '  [[ -n "$_stty_saved" ]] && stty "$_stty_saved" </dev/tty 2>/dev/null',

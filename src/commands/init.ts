@@ -7,6 +7,7 @@ import { PROVIDER_PRESETS, loadConfig, applyPreset, setConfigValue } from '../ut
 import { AIClient } from '../core/ai';
 import { detectShell } from '../core/shell';
 import { renderInitScript, isSupportedShell, SUPPORTED_SHELLS } from '../integrations/shell';
+import { success, kvRow } from '../utils/ui';
 
 /**
  * Draw a box-drawing header panel.
@@ -55,63 +56,103 @@ export async function initCommand(): Promise<void> {
     // ---------- Step 1: Provider + Model ----------
     drawStep(1, 3, 'Select provider');
 
-    const providerChoices = Object.entries(PROVIDER_PRESETS).map(([k, v]) => ({
-      name: `${v.label.padEnd(18)} ${chalk.gray(v.model)}`,
-      value: k,
-    }));
+    // Load existing config (do NOT write until the end)
+    const existingConfig = loadConfig();
+    const currentPreset = existingConfig.preset || '';
+
+    // For current configured preset, show its existing model; others show preset default
+    const providerChoices = Object.entries(PROVIDER_PRESETS).map(([k, v]) => {
+      let displayModel = v.model;
+      if (k === currentPreset && existingConfig.model) {
+        displayModel = existingConfig.model;
+      }
+      return {
+        name: `${v.label.padEnd(18)} ${chalk.gray(displayModel)}`,
+        value: k,
+      };
+    });
 
     const providerKey = await prompts.select({
       message: 'Choose an AI provider:',
       choices: providerChoices,
     });
-    applyPreset(providerKey);
     const preset = PROVIDER_PRESETS[providerKey];
 
-    // Inline model/base_url customization (no extra confirm step)
+    // Determine effective defaults for model and base_url:
+    // - If selecting the current preset, prefer existing config values
+    // - Otherwise use preset defaults
+    const isCurrentPreset = providerKey === currentPreset;
+    const defaultModel = isCurrentPreset && existingConfig.model
+      ? existingConfig.model
+      : preset.model;
+    const defaultBaseUrl = isCurrentPreset && existingConfig.base_url
+      ? existingConfig.base_url
+      : (preset.base_url || '');
+
+    // Show current/preset defaults summary
+    console.log();
+    success(` Provider set to ${preset.label}`);
+    kvRow('provider', preset.provider);
+    kvRow('base_url', defaultBaseUrl || chalk.gray('(default)'));
+    kvRow('model', defaultModel);
+
+    // Prompt for model (Enter = default)
     drawDivider();
-    const customize = await prompts.confirm({
-      message: `Customize ${chalk.cyan('model')} or ${chalk.cyan('base_url')}?`,
-      default: false,
+    const newModel = await prompts.input({
+      message: `Model ${chalk.gray('(press Enter for default)')}:`,
+      default: defaultModel,
     });
+    const model = newModel.trim() || defaultModel;
 
-    let model = preset.model;
-    let baseUrl = preset.base_url || '';
-
-    if (customize) {
-      drawDivider();
-      const newModel = await prompts.input({
-        message: `Model ${chalk.gray('(press Enter for default)')}:`,
-        default: preset.model,
-      });
-      model = newModel.trim() || preset.model;
-
-      drawDivider();
+    // Prompt for base_url (Enter = default, must be valid URL if provided)
+    drawDivider();
+    let baseUrlValid = false;
+    let baseUrl = defaultBaseUrl;
+    while (!baseUrlValid) {
       const newBaseUrl = await prompts.input({
         message: `Base URL ${chalk.gray('(press Enter for default)')}:`,
-        default: preset.base_url || '',
+        default: defaultBaseUrl,
       });
-      baseUrl = newBaseUrl.trim() || preset.base_url || '';
-
-      setConfigValue('model', model);
-      if (baseUrl) setConfigValue('base_url', baseUrl);
+      baseUrl = newBaseUrl.trim();
+      // Empty input → use default; non-empty → must be valid URL
+      if (!baseUrl || /^https?:\/\/.+/.test(baseUrl)) {
+        baseUrlValid = true;
+      } else {
+        console.log(`  ${chalk.red('×')} ${chalk.gray('Invalid URL format. Must start with http:// or https://')}`);
+      }
     }
+
+    // Persist provider + model + base_url in one shot
+    setConfigValue('provider', preset.provider);
+    setConfigValue('preset', providerKey);
+    setConfigValue('model', model);
+    setConfigValue('base_url', baseUrl);
 
     // ---------- Step 2: API key ----------
     drawStep(2, 3, 'API key');
-    let apiKey = '';
+    let apiKey = existingConfig.api_key || '';
     let keyValidated = false;
 
     while (!keyValidated) {
-      apiKey = (await prompts.password({
-        message: `Paste your ${preset.label} API key:`,
+      const hint = existingConfig.api_key ? ' (press Enter to keep current)' : '';
+      const input = (await prompts.password({
+        message: `Paste your ${preset.label} API key${hint}:`,
         mask: '*',
       })).trim();
 
-      if (!apiKey) {
+      // Keep existing key if user presses Enter
+      if (!input && existingConfig.api_key) {
+        console.log(`  ${chalk.gray('Keeping existing API key')}`);
+        keyValidated = true;
+        continue;
+      }
+
+      if (!input) {
         console.log();
         console.log(`  ${chalk.red('×')} ${chalk.gray('API key cannot be empty')}`);
         continue;
       }
+      apiKey = input;
       setConfigValue('api_key', apiKey);
 
       process.stdout.write(`  ${chalk.gray('Testing connection...')}`);
@@ -234,30 +275,27 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
     return;
   }
 
-  if (isAlreadyInstalled(shell, home)) {
-    console.log(`  ${chalk.green('✓')} ${shell} integration already installed`);
-    return;
-  }
-
-  console.log();
-  const install = await prompts.confirm({
-    message: `Install ${chalk.cyan('Ctrl+G')} integration for ${shell}?`,
-    default: true,
-  });
-  if (!install) {
-    console.log(`  ${chalk.gray('Skipped. Run:')} eval "$(wts shell-init ${shell})"`);
-    return;
-  }
+  const alreadyInstalled = isAlreadyInstalled(shell, home);
 
   if (shell === 'zsh' || shell === 'bash') {
     const rc = path.join(home, `.${shell}rc`);
     const line = `eval "$(wts shell-init ${shell})"`;
+    const marker = `# WhatTheShell (wts) integration`;
     try {
-      fs.appendFileSync(rc, `\n# WhatTheShell (wts) integration\n${line}\n`);
-      console.log(`  ${chalk.green('✓')} Written to ${rc}`);
+      let content = '';
+      if (fs.existsSync(rc)) {
+        content = fs.readFileSync(rc, 'utf-8');
+      }
+      // Replace existing block or append
+      const block = `\n${marker}\n${line}\n`;
+      const blockPattern = new RegExp(`\\n${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?\\n(?:${line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n)?`, 'g');
+      const newContent = content.replace(blockPattern, '') + block;
+      fs.writeFileSync(rc, newContent);
+      console.log(`  ${chalk.green('✓')} ${alreadyInstalled ? 'Updated' : 'Installed'} in ${rc}`);
       console.log(`    ${chalk.gray('Run: source')} ${rc}`);
     } catch (e: any) {
       console.log(`  ${chalk.red('×')} Failed: ${e.message}`);
+      console.log(`    ${chalk.gray('Manual install:')} eval "$(wts shell-init ${shell})"`);
     }
     return;
   }
@@ -268,10 +306,11 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
     try {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(target, renderInitScript('fish'));
-      console.log(`  ${chalk.green('✓')} Written to ${target}`);
+      console.log(`  ${chalk.green('✓')} ${alreadyInstalled ? 'Updated' : 'Installed'} at ${target}`);
       console.log(`    ${chalk.gray('Restart fish to activate')}`);
     } catch (e: any) {
       console.log(`  ${chalk.red('×')} Failed: ${e.message}`);
+      console.log(`    ${chalk.gray('Manual install:')} wts shell-init fish > ~/.config/fish/conf.d/wts.fish`);
     }
     return;
   }
@@ -285,11 +324,21 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
     }
     try {
       fs.mkdirSync(path.dirname(profilePath), { recursive: true });
-      fs.appendFileSync(profilePath, '\n' + renderInitScript('powershell'));
-      console.log(`  ${chalk.green('✓')} Written to ${profilePath}`);
+      let content = '';
+      if (fs.existsSync(profilePath)) {
+        content = fs.readFileSync(profilePath, 'utf-8');
+      }
+      // Remove old block if exists, then append new one
+      const startMarker = '# >>> WhatTheShell (wts)';
+      const endMarker = '# <<< WhatTheShell (wts) <<<';
+      const blockPattern = new RegExp(`\\n?${startMarker}[\\s\\S]*?${endMarker}\\n?`, 'g');
+      const newContent = content.replace(blockPattern, '') + '\n' + renderInitScript('powershell') + '\n';
+      fs.writeFileSync(profilePath, newContent);
+      console.log(`  ${chalk.green('✓')} ${alreadyInstalled ? 'Updated' : 'Installed'} in ${profilePath}`);
       console.log(`    ${chalk.gray('Run:')} . $PROFILE`);
     } catch (e: any) {
       console.log(`  ${chalk.red('×')} Failed: ${e.message}`);
+      console.log(`    ${chalk.gray('Manual install:')} wts shell-init powershell | Out-String | Add-Content -Path $PROFILE`);
     }
   }
 }

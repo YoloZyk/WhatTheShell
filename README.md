@@ -4,7 +4,7 @@
 
 `wts` lets you describe what you want in plain English (or Chinese), press a shortcut, and get a working shell command filled back into your prompt — without leaving the terminal or opening a browser tab to ask an LLM.
 
-**Current version:** `v0.2.2`. See the [Changelog](#changelog).
+**Current version:** `v0.3.0`. See the [Changelog](#changelog).
 
 ---
 
@@ -298,6 +298,11 @@ wts history --clear  # wipe the log
 ---
 
 ## Changelog
+
+### v0.3.0 — 2026-04-25
+
+- **Init wizard simplified** — Removed the customize yes/no prompt; model and base_url are now directly prompted with defaults (press Enter to keep default). Existing config values are preserved when re-running `wts init`
+- **Unified Ctrl+G prompt** — All shells now use a consistent `[WhatTheShell] > ` input prompt with cyan coloring
 
 ### v0.2.2 — 2026-04-23
 

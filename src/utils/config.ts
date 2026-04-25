@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { parse, stringify } from '@iarna/toml';
 import { BOX_WIDTH, kvRow, status, footer, success, error } from './ui';
+import { detectShell } from '../core/shell';
 
 const WTS_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '~', '.wts');
 const CONFIG_PATH = path.join(WTS_DIR, 'config.toml');
@@ -12,6 +13,7 @@ const CONFIG_PATH = path.join(WTS_DIR, 'config.toml');
 export const DEFAULT_CONFIG: WtsConfig = {
   api_key: '',
   provider: 'openai',
+  preset: 'openai',
   base_url: '',
   model: 'gpt-4o',
   language: 'en',
@@ -142,6 +144,7 @@ export function listConfig(): void {
   // Key-value pairs - simple format
   const entries: [string, string][] = [
     ['api_key', maskValue(String(config.api_key))],
+    ['preset', config.preset],
     ['provider', config.provider],
     ['base_url', config.base_url || chalk.gray('(default)') as string],
     ['model', config.model],
@@ -177,15 +180,32 @@ export function listConfig(): void {
 
   // Shell integration status
   const integ = detectShellIntegrationState();
-  if (integ.includes('installed')) {
+  if (integ.startsWith('✓')) {
     const shells = integ.match(/\(([^)]+)\)/)?.[1] || '';
     status('ok', 'Shell integration', chalk.gray(shells));
   } else {
-    status('skip', 'Shell integration', chalk.gray('not detected'));
+    const currentShell = detectShell();
+    const hint = getShellInstallHint(currentShell);
+    status('skip', 'Shell integration', chalk.gray(hint));
   }
 
   footer(`Run ${chalk.cyan('wts init')} to configure, ${chalk.cyan('wts config set <key> <value>')} to update`);
   console.log();
+}
+
+/** Get shell-specific install hint */
+function getShellInstallHint(shell: string): string {
+  switch (shell) {
+    case 'powershell':
+      return 'run wts init or: wts shell-init powershell | Out-String | Add-Content -Path $PROFILE';
+    case 'fish':
+      return 'run wts init or: wts shell-init fish > ~/.config/fish/conf.d/wts.fish';
+    case 'zsh':
+    case 'bash':
+      return 'run wts init or: eval "$(wts shell-init ' + shell + ')"';
+    default:
+      return 'run wts init or eval "$(wts shell-init <shell>)"';
+  }
 }
 
 /** Check common shell rc files for an installed wts integration */
@@ -258,7 +278,8 @@ export const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
 
 /** Apply a provider preset to the current config */
 export function applyPreset(name: string): boolean {
-  const preset = PROVIDER_PRESETS[name.toLowerCase()];
+  const presetKey = name.toLowerCase();
+  const preset = PROVIDER_PRESETS[presetKey];
   if (!preset) {
     error(`Unknown provider: ${name}`);
     console.error(`  ${chalk.gray('Available:')} ${Object.keys(PROVIDER_PRESETS).join(', ')}`);
@@ -267,15 +288,10 @@ export function applyPreset(name: string): boolean {
 
   const config = loadConfig();
   config.provider = preset.provider;
+  config.preset = presetKey;
   config.base_url = preset.base_url;
   config.model = preset.model;
   saveConfig(config);
 
-  console.log();
-  success(`Switched to ${preset.label}`);
-  kvRow('provider', preset.provider);
-  kvRow('base_url', preset.base_url || chalk.gray('(default)'));
-  kvRow('model', preset.model);
-  console.log();
   return true;
 }

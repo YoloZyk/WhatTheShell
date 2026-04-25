@@ -18,7 +18,10 @@ export type RiskLevel = 'safe' | 'warning' | 'danger';
 /** 用户配置 */
 export interface WtsConfig {
   api_key: string;
+  /** API 兼容格式: openai 或 anthropic */
   provider: AIProvider;
+  /** 用户选择的预设: qwen, deepseek, minimax 等 */
+  preset: string;
   base_url: string;
   model: string;
   language: Language;
