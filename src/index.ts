@@ -8,7 +8,6 @@ import { askCommand } from './commands/ask';
 import { shellInitCommand } from './commands/shellInit';
 import { initCommand } from './commands/init';
 import { setConfigValue, listConfig, applyPreset, PROVIDER_PRESETS } from './utils/config';
-import { getHistory, clearHistory } from './utils/history';
 import { notifyUpdate } from './utils/version';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -197,6 +196,90 @@ function renderAskHelp(): void {
   console.log();
 }
 
+function renderInitHelp(): void {
+  console.log();
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold('Init')} ${chalk.gray('─'.repeat(54))}`);
+  console.log(`${chalk.cyan('│')}  Interactive first-run setup wizard`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts init')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('-h, --help'.padEnd(14))} ${chalk.gray('Display this help')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('What it does')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('1. Choose AI provider preset (10 supported)')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('2. Optionally customize model and base_url')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('3. Enter API key with connectivity test')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('4. Optionally install Ctrl+G shell integration')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('└─')} ${chalk.gray(`Run ${chalk.cyan('wts --help')} for the full command list`)}`);
+  console.log();
+}
+
+function renderShellInitHelp(): void {
+  console.log();
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold('Shell-init')} ${chalk.gray('─'.repeat(48))}`);
+  console.log(`${chalk.cyan('│')}  Emit shell integration script for Ctrl+G inline assistant`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts shell-init')} ${chalk.gray('[shell]')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Arguments')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('shell'.padEnd(14))} ${chalk.gray('zsh / bash / fish / powershell (default: auto-detect)')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('-h, --help'.padEnd(14))} ${chalk.gray('Display this help')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Examples')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('eval "$(wts shell-init)"')}             ${chalk.gray('# zsh / bash auto-detect')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('eval "$(wts shell-init bash)"')}        ${chalk.gray('# force bash')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts shell-init powershell')} ${chalk.gray('| Out-String | Add-Content $PROFILE')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('└─')} ${chalk.gray(`Or run ${chalk.cyan('wts init')} for the guided installer`)}`);
+  console.log();
+}
+
+function renderHistoryHelp(): void {
+  console.log();
+  console.log(`${chalk.cyan('┌─')} ${chalk.bold('History')} ${chalk.gray('─'.repeat(51))}`);
+  console.log(`${chalk.cyan('│')}  Browse and replay past wts invocations`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts history')} ${chalk.gray('[options]')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('--clear'.padEnd(14))} ${chalk.gray('Wipe the local history log')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('-h, --help'.padEnd(14))} ${chalk.gray('Display this help')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Interactive picker')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('• Type to filter across input + output')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('• ↑↓ to navigate · Enter to select · Esc to cancel')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('• When piped, falls back to a static list')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Examples')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts history')}              ${chalk.gray('# interactive picker')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts history --clear')}      ${chalk.gray('# delete all entries')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts history')} ${chalk.gray('| grep generate')}    ${chalk.gray('# pipe-friendly listing')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('└─')} ${chalk.gray(`Run ${chalk.cyan('wts --help')} for the full command list`)}`);
+  console.log();
+}
+
 const program = new Command();
 
 program
@@ -224,12 +307,21 @@ if (hasHelpFlag) {
   } else if (matchedSubcmd === 'ask' || matchedSubcmd === 'a') {
     renderAskHelp();
     process.exit(0);
+  } else if (matchedSubcmd === 'init') {
+    renderInitHelp();
+    process.exit(0);
+  } else if (matchedSubcmd === 'shell-init') {
+    renderShellInitHelp();
+    process.exit(0);
+  } else if (matchedSubcmd === 'history') {
+    renderHistoryHelp();
+    process.exit(0);
   } else if (!matchedSubcmd) {
     // wts --help — suppress Commander's help; renderHelp() runs in the parse catch below
     program.configureOutput({ writeOut: () => {}, writeErr: () => {} });
     program.exitOverride();
   }
-  // init/shell-init/config/history --help fall through to commander (config has its own override)
+  // config --help is handled by its own option callback (renderConfigHelp)
 }
 
 // generate
@@ -322,35 +414,8 @@ program
   .description('Show recent wts history')
   .option('--clear', 'Wipe the local history log')
   .action(async (options) => {
-    if (options.clear) {
-      clearHistory();
-      const { displaySuccess } = await import('./utils/display');
-      await displaySuccess('History cleared');
-    } else {
-      const entries = getHistory();
-      if (entries.length === 0) {
-        console.log();
-        console.log(`${chalk.cyan('┌─')} ${chalk.bold('History')} ${chalk.gray('─'.repeat(48))}`);
-        console.log(`${chalk.cyan('│')}  ${chalk.gray('(no history yet)')}`);
-        console.log(`${chalk.cyan('└─')} ${chalk.gray('Commands you run will appear here')}`);
-        console.log();
-      } else {
-        console.log();
-        console.log(`${chalk.cyan('┌─')} ${chalk.bold('History')} ${chalk.gray('─'.repeat(48))}`);
-        for (const entry of entries) {
-          const typeColors: Record<string, (s: string) => string> = {
-            generate: chalk.green,
-            explain: chalk.cyan,
-            ask: chalk.magenta,
-          };
-          const typeColorFn = typeColors[entry.type] || chalk.white;
-          console.log(`${chalk.cyan('│')}  ${typeColorFn(entry.type.padEnd(8))} ${chalk.gray(entry.input.slice(0, 40))}`);
-        }
-        const clearCmd = chalk.cyan('wts history --clear');
-        console.log(`${chalk.cyan('└─')} ${chalk.gray(`${entries.length} entries · run ${clearCmd} to wipe`)}`);
-        console.log();
-      }
-    }
+    const { historyCommand } = await import('./commands/history');
+    await historyCommand(options);
   });
 
 // Parse arguments

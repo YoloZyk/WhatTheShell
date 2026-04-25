@@ -57,6 +57,16 @@ export function getHistory(limit?: number): HistoryEntry[] {
   return entries;
 }
 
+/** Case-insensitive substring search across input + output. Returns oldest-first. */
+export function searchHistory(query: string): HistoryEntry[] {
+  const entries = readHistoryFile();
+  if (!query) return entries;
+  const q = query.toLowerCase();
+  return entries.filter(
+    e => e.input.toLowerCase().includes(q) || e.output.toLowerCase().includes(q),
+  );
+}
+
 /** 清除历史记录 */
 export function clearHistory(): void {
   writeHistoryFile([]);

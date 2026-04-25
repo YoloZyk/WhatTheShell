@@ -239,7 +239,7 @@ async function interactiveConfirm(command: string, isDanger: boolean, shell: She
 }
 
 /** Execute a command in a child shell. */
-function runCommand(command: string, shell?: ShellType): Promise<void> {
+export function runCommand(command: string, shell?: ShellType): Promise<void> {
   return new Promise((resolve) => {
     console.log();
     // 1. 确定运行环境
