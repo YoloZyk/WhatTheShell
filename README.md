@@ -301,13 +301,18 @@ wts history --clear  # wipe the log
 
 ### v0.3.0 — 2026-04-25
 
-- **Init wizard simplified** — Removed the customize yes/no prompt; model and base_url are now directly prompted with defaults (press Enter to keep default). Existing config values are preserved when re-running `wts init`
-- **Unified Ctrl+G prompt** — All shells now use a consistent `[WhatTheShell] > ` input prompt with cyan coloring
+Major UI modernization and new features.
+
+- **UI modernization** — Box-drawing borders, arrow-key menus, redesigned command output with DANGER/CAUTION badges
+- **Interactive history** — New `wts history` command with live search, type-colored entries, and one-click replay
+- **`wts scaffold`** — Generate project scaffolding (Dockerfile, .gitignore, etc.) with deep project context awareness
+- **Init wizard simplified** — Press Enter to keep defaults; existing config preserved on re-run
+- **Reasoning model support** — Strips `<think>` / `</think>` tags from DeepSeek R1, Qwen3, and similar models
+- **Unified Ctrl+G prompt** — Consistent `[WhatTheShell] > ` across all shells
 
 ### v0.2.2 — 2026-04-23
 
-- Improved shell detection across Windows and Unix environments
-- Fixed command execution compatibility issues
+- Improved shell detection and command execution compatibility
 
 ### v0.2.1 — 2026-04-22
 
