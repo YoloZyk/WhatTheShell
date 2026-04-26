@@ -5,12 +5,12 @@
 `wts` lets you describe what you want in plain English (or Chinese), press a shortcut, and get a working shell command filled back into your prompt — without leaving the terminal or opening a browser tab to ask an LLM.
 
 <p>
-  <img src="docs/demo-g.gif" width="280" />
-  <img src="docs/demo-e.gif" width="280" />
+  <img src="docs/demo-g.gif" width="450" />
+  <img src="docs/demo-e.gif" width="450" />
 </p>
 <p>
-  <img src="docs/demo-f.gif" width="280" />
-  <img src="docs/demo-ctrlg.gif" width="280" />
+  <img src="docs/demo-f.gif" width="450" />
+  <img src="docs/demo-ctrlg.gif" width="450" />
 </p>
 
 **Current version:** `v0.3.0`. See the [Changelog](#changelog).
