@@ -402,7 +402,8 @@ program
 // scaffold
 program
   .command('scaffold <intent>')
-  .description('Draft a setup script for project files (review and adapt before running)')
+  .alias('f')
+  .description('Generate a project file or code structure (review and adapt before running)')
   .option('-s, --shell <shell>', 'Target shell syntax (bash/zsh/powershell/fish)')
   .action(async (intent: string, options) => {
     const { scaffoldCommand } = await import('./commands/scaffold');

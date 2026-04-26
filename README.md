@@ -157,14 +157,17 @@ Alias: `wts a`.
 
 ### `wts scaffold`
 
-Generate project scaffolding (Dockerfile, .gitignore, etc.) with deep awareness of your project's ecosystem (Node.js, Python, Go, Rust, etc.).
+Generate project files, code structures, or training frameworks. Deep awareness of your project's ecosystem (Node.js, Python, Go, Rust, etc.).
 
 ```bash
-wts scaffold "write a Dockerfile for this project"
-wts scaffold "add a .gitignore for node and vscode"
+wts f "a PyTorch training script for image classification"
+wts scaffold "Dockerfile for this Node.js project"
+wts scaffold "add .gitignore for node and vscode"
 ```
 
 The output is shown for review; you save, copy, or adapt before running anything.
+
+Alias: `wts f`.
 
 ### `wts history`
 
