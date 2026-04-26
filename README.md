@@ -4,6 +4,8 @@
 
 `wts` lets you describe what you want in plain English (or Chinese), press a shortcut, and get a working shell command filled back into your prompt — without leaving the terminal or opening a browser tab to ask an LLM.
 
+![wts demo](docs/demo-g.gif) ![wts explain](docs/demo-e.gif) ![wts scaffold](docs/demo-f.gif) ![wts inline](docs/demo-ctrlg.gif)
+
 **Current version:** `v0.3.0`. See the [Changelog](#changelog).
 
 ---

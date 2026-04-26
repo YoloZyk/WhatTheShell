@@ -6,3 +6,5 @@ docs/DEV.md
 docs/HANDOFF.md
 docs/RoadMap.pdf
 docs/PROGRESS.md
+*.gif
+docs/*.gif
