@@ -53,11 +53,38 @@
 
 ## Installation
 
-Requires **Node.js ≥ 18**.
+### npm (requires Node.js ≥ 18)
 
 ```bash
 npm install -g whattheshell
 wts init
+```
+
+### Download binary (no Node.js required)
+
+Download the executable for your platform from [GitHub Releases](https://github.com/YoloZyk/WhatTheShell/releases/latest):
+
+| Platform | Download |
+|----------|----------|
+| Windows | `wts-win.exe` |
+| macOS | `wts-macos` |
+| Linux | `wts-linux` |
+
+After download, make it executable (Linux/macOS):
+
+```bash
+chmod +x wts-linux   # or wts-macos
+./wts-linux          # run directly, or move to PATH
+```
+
+For convenience, move it to your PATH:
+
+```bash
+# Linux/macOS
+sudo mv wts-linux /usr/local/bin/wts
+
+# Windows: add the folder to your PATH, then run:
+wts.exe init
 ```
 
 `wts init` is a one-minute wizard that walks you through provider choice, API-key setup (with a live connectivity test), and optional shell integration. If you skip it, the wizard auto-launches the first time you run `generate` / `explain` / `ask` without a configured key.

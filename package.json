@@ -50,6 +50,7 @@
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@types/update-notifier": "^6.0.8",
+    "@yao-pkg/pkg": "^0.14.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.2"
   }
