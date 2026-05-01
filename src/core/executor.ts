@@ -203,7 +203,14 @@ export class StepExecutor {
 
     // bash / zsh
     const sentinelLit = sentinelFile.replace(/'/g, "'\\''");
-    return `${command}\nprintf '%s' "$PWD" > '${sentinelLit}'\n`;
+    // On Windows (git bash / msys / cygwin), $PWD is POSIX-style (e.g.
+    // /e/pyku/foo). Node's spawn on Windows treats that as a non-existent
+    // cwd and ENOENTs on the next step. cygpath -w converts to a real
+    // Windows path; fall back to $PWD if cygpath is unavailable.
+    const writeCwd = process.platform === 'win32'
+      ? `if command -v cygpath >/dev/null 2>&1; then printf '%s' "$(cygpath -w "$PWD")" > '${sentinelLit}'; else printf '%s' "$PWD" > '${sentinelLit}'; fi`
+      : `printf '%s' "$PWD" > '${sentinelLit}'`;
+    return `${command}\n${writeCwd}\n`;
   }
 
   private getScriptArgs(file: string): string[] {
