@@ -123,6 +123,7 @@ function renderGenerateHelp(): void {
     { flag: '--inline', desc: 'Emit bare command to stdout (for integrations)' },
     { flag: '--buffer <buffer>', desc: 'Current shell buffer (inline mode)' },
     { flag: '--history-file <path>', desc: 'External history file path' },
+    { flag: '--script', desc: 'Force multi-step script mode' },
     { flag: '-h, --help', desc: 'Display this help' },
   ];
   for (const o of opts) {
@@ -375,6 +376,7 @@ program
   .option('--inline', 'Inline mode: emit bare command to stdout (for shell integrations)')
   .option('--buffer <buffer>', 'Current shell command-line buffer')
   .option('--history-file <path>', 'External shell history file path')
+  .option('--script', 'Force multi-step script mode')
   .action(async (description: string, options) => {
     await generateCommand(description, options);
   });

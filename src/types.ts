@@ -44,6 +44,8 @@ export interface GenerateOptions {
   buffer?: string;
   /** 外部 shell history 文件路径（由 shell 集成脚本传入 $HISTFILE） (v0.2) */
   historyFile?: string;
+  /** 强制多步脚本模式 (v0.4) */
+  script?: boolean;
 }
 
 /** explain 命令选项 */
@@ -121,4 +123,29 @@ export interface ContextSnapshot {
   git?: GitSnapshot;
   /** 最近的 shell history（已经过 sanitize） */
   recentHistory: string[];
+}
+
+/** 脚本中的单个步骤 (v0.4) */
+export interface Step {
+  index: number;
+  command: string;
+  description?: string;
+  danger?: boolean;
+}
+
+/** 执行结果 (v0.4) */
+export interface ExecutionResult {
+  step: Step;
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  cwd: string;
+  error?: string;
+}
+
+/** 脚本生成结果 (v0.4) */
+export interface ScriptResult {
+  steps: Step[];
+  risk: 'safe' | 'warning' | 'danger';
+  warnings: string[];
 }

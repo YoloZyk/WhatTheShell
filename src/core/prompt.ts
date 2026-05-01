@@ -129,6 +129,22 @@ Rules:
 Question: ${question}`;
 }
 
+/** 任务分类 prompt (v0.4) */
+export function buildClassifyPrompt(description: string, language: Language): string {
+  const lang = language === 'zh' ? '中文' : 'English';
+
+  return `You are a task classification expert. Analyze the user's request and classify it into one of two categories:
+
+A) Single command - Can be completed with ONE shell command (e.g., "list files", "kill process", "find pattern")
+B) Multi-step script - Requires MULTIPLE steps (e.g., creating projects, initializing repos, writing multiple files, configuring environments, complex workflows)
+
+Respond with ONLY the letter A or B, nothing else. No explanation, no extra text.
+
+User request: ${description}
+
+Classification:`;
+}
+
 /** Multi-step scaffolding prompt (file creation, project init flows) */
 export function buildScaffoldPrompt(
   intent: string,
@@ -174,4 +190,70 @@ Rules:
 - For safe scaffolds, output ONLY the script with no tags.
 
 User goal: ${intent}`;
+}
+
+/** Multi-step script prompt (v0.4) */
+export function buildScriptPrompt(
+  description: string,
+  shell: ShellType,
+  language: Language,
+  ctx?: ContextSnapshot,
+): string {
+  const lang = language === 'zh' ? '中文' : 'English';
+  const style = SHELL_STYLE_HINTS[shell];
+  const ex = SHELL_DANGER_EXAMPLES[shell];
+  const fileWriteHint = SHELL_FILE_WRITE_HINTS[shell];
+
+  const ctxBlock = ctx ? (() => {
+    let prefix = `Current working directory: ${ctx.pwd}\n`;
+    if (ctx.git) {
+      prefix += `Git branch: ${ctx.git.branch}${ctx.git.dirty ? ' (dirty)' : ''}\n`;
+    }
+    if (ctx.projects.length > 0) {
+      prefix += `Project type: ${ctx.projects.map(p => p.kind).join(', ')}\n`;
+    }
+    return prefix + '\n';
+  })() : '';
+
+  return `${ctxBlock}You are a shell command expert. The user describes what they want to do, and you generate a multi-step script.
+
+Rules:
+- Target shell: ${shell}
+- Style: ${style}
+- **IMPORTANT: Output the ACTUAL EXECUTABLE COMMAND, not a description!**
+  - WRONG: "Step 1: Create project directory structure"
+  - RIGHT: "Step 1: mkdir -p myproject"
+- Output format: Use "Step N:" as the header, followed by the actual command.
+- Do NOT wrap commands in markdown — no inline backticks (\`cmd\`), no triple-backtick fences (\`\`\`...\`\`\`). Emit the raw command text directly after "Step N:". A leading backtick in PowerShell is an escape character; a trailing backtick is line-continuation — both will corrupt the executed command.
+- If a command spans multiple lines (like heredocs), continue it on the next line. The parser will collect content until the next "Step N:".
+
+Step granularity (very important):
+- Aim for 5-8 steps total, not 10+. Each step should be a meaningful logical unit, not a single file write.
+- A SINGLE step can contain MULTIPLE file writes — chain multiple here-strings / heredocs in one step. Prefer this over splitting each file into its own step.
+- Typical project-setup grouping:
+  - 1 step: directory + repo init (mkdir + cd + git init together)
+  - 1 step: config files (package.json + .gitignore + README in one block)
+  - 1-2 steps: source code (group related source files per logical layer)
+  - 1 step: install dependencies
+  - 1 step: final message / verification
+- Each step should be independently meaningful and roughly self-contained for retry on failure.
+
+NEVER include long-running or interactive commands as executable steps — they hang the runner forever:
+- Dev servers: \`npm start\`, \`npm run dev\`, \`npm run serve\`, \`npx serve\`, \`npx live-server\`, \`node server.js\`, \`python -m http.server\`
+- Watchers: \`tsc --watch\`, \`webpack --watch\`, \`vite\`, \`nodemon\`, anything with \`--watch\`
+- Interactive tools: \`gh auth login\`, \`ssh\`, \`vim\`, \`nano\`
+Instead, put start/usage instructions in the FINAL step as a printed message (\`Write-Host\` for PowerShell, \`echo\` for bash/zsh/fish) so the user can copy-paste and run them manually after the script finishes.
+
+Other rules:
+- Dangerous commands (e.g. ${ex.danger}) MUST be marked with [DANGER] at the end.
+- Mildly risky commands (e.g. ${ex.caution}) should be marked with [CAUTION].
+- For file creation with content: ${fileWriteHint}
+- Respond in ${lang}.
+
+User request: ${description}
+
+Output:
+Step 1: <actual command>
+Step 2: <actual command that may
+span multiple lines>`;
 }

@@ -1,8 +1,9 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot } from '../types';
-import { buildGeneratePrompt, buildExplainPrompt, buildAskPrompt, buildScaffoldPrompt } from './prompt';
+import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot, ScriptResult } from '../types';
+import { buildGeneratePrompt, buildExplainPrompt, buildAskPrompt, buildScaffoldPrompt, buildScriptPrompt, buildClassifyPrompt } from './prompt';
 import type { ScaffoldContext } from './scaffoldContext';
+import { parseScriptResponse } from './script';
 
 export class AIClient {
   private provider: AIProvider;
@@ -80,6 +81,30 @@ export class AIClient {
     const prompt = buildAskPrompt(question, language, ctx);
     const raw = await this.chat(prompt);
     return stripReasoningTags(raw);
+  }
+
+  /** 使用 AI 判断任务类型 (v0.4) */
+  async classifyTask(description: string, language: Language): Promise<'single' | 'multi'> {
+    const prompt = buildClassifyPrompt(description, language);
+    const raw = await this.chat(prompt);
+    const answer = stripReasoningTags(raw).trim().toUpperCase();
+    if (answer.includes('B')) {
+      return 'multi';
+    }
+    return 'single';
+  }
+
+  /** 生成多步脚本 (v0.4) */
+  async script(description: string, shell: ShellType, language: Language, ctx?: ContextSnapshot): Promise<ScriptResult> {
+    const prompt = buildScriptPrompt(description, shell, language, ctx);
+    const raw = await this.chat(prompt);
+    // Debug: show raw output if DEBUG_WTS is set
+    if (process.env.DEBUG_WTS) {
+      console.error('\n[DEBUG] Raw AI response:');
+      console.error(raw);
+      console.error('\n[DEBUG] End raw response\n');
+    }
+    return parseScriptResponse(raw);
   }
 
   /** Generate a multi-step scaffolding script (file creation, project init). */
