@@ -830,65 +830,84 @@ function detectLongRunning(command: string): { isLong: boolean; reason?: string 
 
 /** Prompt before execution */
 async function promptPreExecution(): Promise<'r' | 'e' | 'c'> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await new Promise<string>((resolve) => {
-    rl.question(`${chalk.cyan('[R]un  [E]dit  [C]ancel:')}`, (a) => {
-      rl.close();
-      resolve(a.trim().toLowerCase());
+  const prompts = await import('@inquirer/prompts');
+  try {
+    return await prompts.select({
+      message: 'Action:',
+      choices: [
+        { name: `${chalk.green('Run')} this step`, value: 'r' as const },
+        { name: `${chalk.yellow('Edit')} the command`, value: 'e' as const },
+        { name: `${chalk.gray('Cancel')}`, value: 'c' as const },
+      ],
     });
-  });
-
-  if (answer === 'e') return 'e';
-  if (answer === 'c') return 'c';
-  return 'r';
+  } catch (err: any) {
+    if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
+      return 'c';
+    }
+    throw err;
+  }
 }
 
 /** Prompt before execution when a long-running command is detected — adds
  *  [S]kip option since [R]un anyway will hang. */
 async function promptPreExecutionLongRunning(): Promise<'r' | 's' | 'e' | 'c'> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await new Promise<string>((resolve) => {
-    rl.question(`${chalk.yellow('[R]un anyway  [S]kip  [E]dit  [C]ancel:')}`, (a) => {
-      rl.close();
-      resolve(a.trim().toLowerCase());
+  const prompts = await import('@inquirer/prompts');
+  try {
+    return await prompts.select({
+      message: 'Action (long-running detected):',
+      choices: [
+        { name: `${chalk.yellow('Run anyway')} ${chalk.gray('(will block until Ctrl+C)')}`, value: 'r' as const },
+        { name: `${chalk.cyan('Skip')} this step`, value: 's' as const },
+        { name: `${chalk.yellow('Edit')} the command`, value: 'e' as const },
+        { name: `${chalk.gray('Cancel')}`, value: 'c' as const },
+      ],
+      default: 's' as const,
     });
-  });
-
-  if (answer === 's') return 's';
-  if (answer === 'e') return 'e';
-  if (answer === 'c') return 'c';
-  return 'r';
+  } catch (err: any) {
+    if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
+      return 'c';
+    }
+    throw err;
+  }
 }
 
 /** Prompt on failure */
 async function promptFailureAction(): Promise<'f' | 'h' | 'e' | 's' | 'c'> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await new Promise<string>((resolve) => {
-    rl.question(`${chalk.yellow('[F]ix  [F+H] Fix with Hint  [E]dit  [S]kip  [C]ancel:')}`, (a) => {
-      rl.close();
-      resolve(a.trim().toLowerCase());
+  const prompts = await import('@inquirer/prompts');
+  try {
+    return await prompts.select({
+      message: 'How to handle this failure?',
+      choices: [
+        { name: `${chalk.cyan('Fix')} automatically`, value: 'f' as const },
+        { name: `${chalk.yellow('Fix with hint')} ${chalk.gray('— give the AI a hint')}`, value: 'h' as const },
+        { name: `${chalk.yellow('Edit')} the command`, value: 'e' as const },
+        { name: `${chalk.gray('Skip')} this step`, value: 's' as const },
+        { name: `${chalk.gray('Cancel')}`, value: 'c' as const },
+      ],
     });
-  });
-
-  if (answer === 'f') return 'f';
-  if (answer === 'h' || answer === 'fh') return 'h';
-  if (answer === 'e') return 'e';
-  if (answer === 's') return 's';
-  return 'c';
+  } catch (err: any) {
+    if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
+      return 'c';
+    }
+    throw err;
+  }
 }
 
-/** Prompt for fix hint */
+/** Prompt for fix hint. Empty input or Ctrl+C returns null → caller treats
+ *  this as "go back to the failure menu" (does not advance the step). */
 async function promptFixHint(): Promise<string | null> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const hint = await new Promise<string>((resolve) => {
-    rl.question(`${chalk.yellow('Enter hint (or Enter for auto-fix):')}`, (a) => {
-      rl.close();
-      resolve(a.trim());
-    });
-  });
-
-  if (hint === '') return null; // Cancel
-  return hint;
+  const prompts = await import('@inquirer/prompts');
+  try {
+    const hint = await prompts.input({ message: 'Hint:' });
+    const trimmed = hint.trim();
+    if (trimmed === '') return null;
+    return trimmed;
+  } catch (err: any) {
+    if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
+      return null;
+    }
+    throw err;
+  }
 }
 
 /** Clean AI response to extract pure command */
@@ -995,14 +1014,18 @@ async function improveScript(
   config: ReturnType<typeof loadConfig>,
   currentSteps: Step[],
 ): Promise<void> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const prompts = await import('@inquirer/prompts');
 
-  const feedback = await new Promise<string>((resolve) => {
-    rl.question(`${chalk.yellow('What would you like to improve?')}\n  > `, (a) => {
-      rl.close();
-      resolve(a.trim());
-    });
-  });
+  let feedback: string;
+  try {
+    feedback = (await prompts.input({ message: 'What would you like to improve?' })).trim();
+  } catch (err: any) {
+    if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
+      console.log(`  ${chalk.gray('Cancelled')}`);
+      return;
+    }
+    throw err;
+  }
 
   if (!feedback) {
     console.log(`  ${chalk.gray('Cancelled')}`);
