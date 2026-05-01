@@ -191,7 +191,7 @@ async function interactiveConfirm(command: string, isDanger: boolean, shell: She
       break;
     }
     case 'edit': {
-      const { newCommand, changed } = await editCommand(command);
+      const { newCommand, changed } = await editCommand(command, shell);
       if (newCommand && changed) {
         const editedCheck = checkDanger(newCommand);
         const editedIsDanger = editedCheck.risk === 'danger';
@@ -255,8 +255,33 @@ export function runCommand(command: string, shell?: ShellType): Promise<void> {
   });
 }
 
-/** Edit the command inline by pre-filling the readline buffer. Returns { newCommand, changed }. */
-function editCommand(command: string): Promise<{ newCommand: string; changed: boolean }> {
+/** Edit the command. Single-line goes through readline with prefill (low
+ *  friction inline edit). Multi-line falls back to inquirer.editor — the
+ *  external editor handles \n/heredoc/here-string content correctly,
+ *  whereas readline's prefill triggers immediate submission on the first
+ *  newline and leaves the rest of the buffer in stdin (corrupting the
+ *  next prompt). */
+async function editCommand(command: string, shell?: ShellType): Promise<{ newCommand: string; changed: boolean }> {
+  if (command.includes('\n')) {
+    const prompts = await import('@inquirer/prompts');
+    const postfix = shell === 'powershell' ? '.ps1' : shell === 'fish' ? '.fish' : '.sh';
+    try {
+      const edited = await prompts.editor({
+        message: 'Edit the command (save and close your editor to confirm):',
+        default: command,
+        postfix,
+        waitForUserInput: false,
+      });
+      const trimmed = edited.trim();
+      return { newCommand: trimmed, changed: trimmed !== command };
+    } catch (err: any) {
+      if (err?.name === 'ExitPromptError' || err?.message?.includes('User force closed')) {
+        return { newCommand: command, changed: false };
+      }
+      throw err;
+    }
+  }
+
   return new Promise((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     rl.question(`${chalk.cyan('  > ')}`, (answer) => {
@@ -271,9 +296,12 @@ function editCommand(command: string): Promise<{ newCommand: string; changed: bo
   });
 }
 
-/** Display change summary between old and new command */
+/** Display change summary between old and new command. Multi-line commands
+ *  collapse to a summary line so the terminal doesn't re-render the entire
+ *  here-string body. */
 function displayEditChange(oldCmd: string, newCmd: string): void {
-  console.log(`  ${chalk.yellow('→')} ${newCmd}`);
+  const display = newCmd.includes('\n') ? summarizeStep(newCmd) : newCmd;
+  console.log(`  ${chalk.yellow('→')} ${display}`);
 }
 
 /** Single-line command mode (original generate logic) */
@@ -553,8 +581,8 @@ async function runAllSteps(
         }
       } else if (action === 'e') {
         // Edit and retry
-        const { newCommand, changed } = await editCommand(step.command);
-        if (changed) {
+        const { newCommand, changed } = await editCommand(step.command, shell);
+        if (changed && newCommand) {
           const oldCmd = step.command;
           step.command = newCommand;
           displayEditChange(oldCmd, newCommand);
@@ -566,6 +594,9 @@ async function runAllSteps(
             failedSteps.push({ step, error: editResult.error || 'Unknown error' });
           }
         } else {
+          // Edit cancelled or produced empty command — original is preserved
+          const reason = changed ? 'empty command' : 'no changes';
+          console.log(`  ${chalk.gray(`Edit cancelled (${reason})`)}`);
           failedSteps.push({ step, error: 'Edit cancelled' });
         }
       } else if (action === 's') {
@@ -644,11 +675,14 @@ async function stepByStepMode(
       currentIndex++;
       continue;
     } else if (preAction === 'e') {
-      const { newCommand, changed } = await editCommand(step.command);
-      if (changed) {
+      const { newCommand, changed } = await editCommand(step.command, shell);
+      if (changed && newCommand) {
         step.command = newCommand;
         displayEditChange(step.command, newCommand);
       } else {
+        if (changed && !newCommand) {
+          console.log(`  ${chalk.gray('Edit produced empty command — keeping original')}`);
+        }
         continue; // Ask again
       }
     }
@@ -686,8 +720,8 @@ async function stepByStepMode(
           }
         }
       } else if (action === 'e') {
-        const { newCommand, changed } = await editCommand(step.command);
-        if (changed) {
+        const { newCommand, changed } = await editCommand(step.command, shell);
+        if (changed && newCommand) {
           const oldCmd = step.command;
           step.command = newCommand;
           displayEditChange(oldCmd, newCommand);
@@ -697,7 +731,11 @@ async function stepByStepMode(
             printStepSuccess(step, stepNum, editResult, editCwdBefore, executor.getCwd());
             currentIndex++;
           }
+        } else if (changed && !newCommand) {
+          console.log(`  ${chalk.gray('Edit produced empty command — keeping original')}`);
+          // fall through: the outer while loop will re-run this step
         }
+        // unchanged or empty: fall through, outer loop re-prompts the same step
       } else if (action === 's') {
         console.log(`  ${chalk.gray('Skipped')}`);
         currentIndex++;
