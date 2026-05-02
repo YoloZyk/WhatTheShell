@@ -6,5 +6,7 @@ docs/DEV.md
 docs/HANDOFF.md
 docs/RoadMap.pdf
 docs/PROGRESS.md
+*.tgz
+.commit-staging/
 # *.gif
 # docs/*.gif
