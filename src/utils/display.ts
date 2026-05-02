@@ -1,6 +1,7 @@
 import type { RiskLevel, CommandSegment, FileSection, FileIssue } from '../types';
 import chalk from 'chalk';
 import { success as uiSuccess, error as uiError, warn as uiWarn } from './ui';
+import { renderMarkdown } from './markdown';
 
 // chalk/ora 是 ESM-only，需要动态导入
 let _ora: any = null;
@@ -244,10 +245,13 @@ export async function displayAnswer(answer: string): Promise<void> {
   console.log(`${chalk.cyan('┌─')} ${chalk.magenta('[ask]')} ${chalk.gray('─'.repeat(50))}`);
   console.log(`${chalk.cyan('│')}`);
 
-  // Answer content
-  const lines = answer.split('\n');
-  for (const line of lines) {
-    console.log(`${chalk.cyan('│')}  ${chalk.white(line)}`);
+  // Render Markdown-ish content with ANSI styling. White is the implicit
+  // base color — renderMarkdown emits ANSI codes inline where formatting
+  // applies and leaves prose unstyled, so we don't wrap each line in
+  // chalk.white (which would clobber bold/italic codes).
+  const rendered = renderMarkdown(answer);
+  for (const line of rendered) {
+    console.log(`${chalk.cyan('│')}  ${line}`);
   }
 
   console.log(`${chalk.cyan('│')}`);

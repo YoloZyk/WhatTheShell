@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { AIClient } from '../core/ai';
 import { collectScaffoldContext } from '../core/scaffoldContext';
-import { parseAttachments } from '../core/attachments';
+import { parseAttachments, highlightAtTokens } from '../core/attachments';
 import { loadConfig } from '../utils/config';
 import { addHistory } from '../utils/history';
 import { displayAnswer, displayError, displayWarn, startSpinner } from '../utils/display';
@@ -88,7 +88,7 @@ async function runAskFlow(args: AskFlowArgs): Promise<void> {
 
   const parsed = parseAttachments(args.rawQuestion, process.cwd(), config.shell);
 
-  renderHeader(parsed.attachments, args.displayQuestion);
+  renderHeader(parsed.attachments, args.displayQuestion, parsed.resolvedTokens);
 
   for (const w of parsed.warnings) {
     await displayWarn(w);
@@ -109,17 +109,21 @@ async function runAskFlow(args: AskFlowArgs): Promise<void> {
   }
 }
 
-function renderHeader(attached: { path: string; lineCount: number }[], rawQuestion: string): void {
+function renderHeader(
+  attached: { path: string; lineCount: number }[],
+  rawQuestion: string,
+  resolvedTokens: Set<string>,
+): void {
   console.log(`${chalk.cyan('┌─')} ${chalk.magenta('[ask]')} ${chalk.gray('─'.repeat(50))}`);
   if (attached.length > 0) {
     const totalLines = attached.reduce((acc, f) => acc + f.lineCount, 0);
     const list = attached.map(f => f.path).join(', ');
     const truncated = list.length > 60 ? list.slice(0, 57) + '...' : list;
     console.log(
-      `${chalk.cyan('│')}  ${chalk.cyan('📎')} ${chalk.gray('Attached:')} ${chalk.white(truncated)} ` +
+      `${chalk.cyan('│')}  ${chalk.cyan('📎')} ${chalk.gray('Attached:')} ${chalk.cyan.bold(truncated)} ` +
       chalk.gray(`(${attached.length} file${attached.length > 1 ? 's' : ''}, ${totalLines} lines)`),
     );
   }
-  console.log(`${chalk.cyan('│')}  ${chalk.gray('>')} ${chalk.white(rawQuestion)}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('>')} ${highlightAtTokens(rawQuestion, resolvedTokens)}`);
   console.log(`${chalk.cyan('├─')} ${chalk.gray('─'.repeat(56))}`);
 }

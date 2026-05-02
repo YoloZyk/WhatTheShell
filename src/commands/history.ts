@@ -4,6 +4,8 @@ import { getHistory, clearHistory, searchHistory } from '../utils/history';
 import { displaySuccess, displayError } from '../utils/display';
 import { copyToClipboard } from '../utils/clipboard';
 import { pickWithEsc } from '../utils/inquirer';
+import { renderMarkdown } from '../utils/markdown';
+import { highlightAtTokens, resolveTokensInText } from '../core/attachments';
 import { runCommand } from './generate';
 import { checkDanger } from '../core/danger';
 import { loadConfig } from '../utils/config';
@@ -143,7 +145,13 @@ function showDetailPanel(entry: HistoryEntry): void {
   if (warning) {
     console.log(`${borderFn('│')}  ${warnFn(warning)}`);
   }
-  console.log(`${borderFn('│')}  ${chalk.gray('>')} ${chalk.white(entry.input)}`);
+  // For ask entries, re-resolve any `@path` tokens against the *current* cwd
+  // and color them: cyan-bold if still findable here, dim if not. Other entry
+  // types don't carry path tokens so we leave their input untouched.
+  const renderedInput = entry.type === 'ask'
+    ? highlightAtTokens(entry.input, resolveTokensInText(entry.input, process.cwd()))
+    : chalk.white(entry.input);
+  console.log(`${borderFn('│')}  ${chalk.gray('>')} ${renderedInput}`);
   console.log(`${borderFn('│')}`);
 
   const outputLabel = entry.type === 'generate' ? 'Command:'
@@ -152,15 +160,25 @@ function showDetailPanel(entry: HistoryEntry): void {
                     : entry.type === 'explain' ? 'Summary:'
                     : 'Answer:';
   console.log(`${borderFn('│')}  ${chalk.gray(outputLabel)}`);
-  for (const line of entry.output.split('\n')) {
-    let styled: string;
-    if (outputIsScript) {
-      const isComment = line.trim().startsWith('#');
-      styled = isComment ? chalk.gray(line) : chalk.green.bold(line);
-    } else {
-      styled = entry.type === 'generate' ? chalk.green.bold(line) : chalk.white(line);
+
+  if (entry.type === 'ask') {
+    // Ask answers are typically Markdown — render bold/italic/code/lists/headers
+    // rather than dumping raw asterisks and triple-backticks. Other entry types
+    // are commands or scripts where formatting characters are literal.
+    for (const line of renderMarkdown(entry.output)) {
+      console.log(`${borderFn('│')}    ${line}`);
     }
-    console.log(`${borderFn('│')}    ${styled}`);
+  } else {
+    for (const line of entry.output.split('\n')) {
+      let styled: string;
+      if (outputIsScript) {
+        const isComment = line.trim().startsWith('#');
+        styled = isComment ? chalk.gray(line) : chalk.green.bold(line);
+      } else {
+        styled = entry.type === 'generate' ? chalk.green.bold(line) : chalk.white(line);
+      }
+      console.log(`${borderFn('│')}    ${styled}`);
+    }
   }
 
   console.log(`${borderFn('└─')} ${chalk.gray('─'.repeat(58))}`);
