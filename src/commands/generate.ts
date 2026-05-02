@@ -399,10 +399,12 @@ async function runMultiStepMode(
     // semantics: log the AI output regardless of whether the user runs it).
     // Use 'multistep' (NOT 'script' — that's a legacy alias for 'scaffold')
     // so the history picker renders this with its own label / menu / color.
+    // Store in paste-ready form (# Step N: <desc> + cmd) so a "Copy script"
+    // action drops something the user can paste straight into a shell.
     addHistory({
       type: 'multistep',
       input: description,
-      output: formatScriptForHistory(result.steps),
+      output: formatScriptForCopy(result.steps),
     });
 
     await interactiveScriptMenu(client, description, shell, config, result.steps, result.risk);
@@ -413,17 +415,11 @@ async function runMultiStepMode(
   }
 }
 
-/** Render steps as `Step N: <cmd>` lines for the history log — matches the
- *  format the improveScript prompt already uses, so users browsing history
- *  see a stable shape across single- and multi-step entries. */
-function formatScriptForHistory(steps: Step[]): string {
-  return steps.map(s => `Step ${s.index}: ${s.command}`).join('\n');
-}
-
-/** Render steps for clipboard paste: `# Step N: <description>` comment then
- *  the command, blank line between steps. No shebang / err pragma — the user
- *  is pasting this into a live shell, not saving a script. # is a comment in
- *  bash/zsh/fish/PowerShell so the same format works for all four. */
+/** Render steps for clipboard paste / history storage: per-step
+ *  `# Step N: <description>` comment then the command, blank line between
+ *  steps. No shebang / err pragma — the user is pasting this into a live
+ *  shell, not saving a script. # is a comment in bash/zsh/fish/PowerShell
+ *  so the same format works for all four. */
 function formatScriptForCopy(steps: Step[]): string {
   return steps.map(s => {
     const desc = s.description ? `# Step ${s.index}: ${s.description}` : `# Step ${s.index}`;
@@ -1263,7 +1259,7 @@ Step 2: <command>
       addHistory({
         type: 'multistep',
         input: `${originalDescription} (improved: ${feedback})`,
-        output: formatScriptForHistory(result.steps),
+        output: formatScriptForCopy(result.steps),
       });
       // Update the steps and show menu again
       await interactiveScriptMenu(client, originalDescription, shell, config, result.steps, result.risk);
