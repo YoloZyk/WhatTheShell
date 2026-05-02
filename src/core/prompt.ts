@@ -304,6 +304,13 @@ NEVER include long-running or interactive commands as executable steps — they 
 - Interactive tools: \`gh auth login\`, \`ssh\`, \`vim\`, \`nano\`
 Instead, put start/usage instructions in the FINAL step as a printed message (\`Write-Host\` for PowerShell, \`echo\` for bash/zsh/fish) so the user can copy-paste and run them manually after the script finishes.
 
+Project shape selection (very important — pick the form, then express it in the target shell):
+- For INTERACTIVE / VISUAL / GUI applications (scoreboards, dashboards, calculators, todo apps, games, charts, control panels, anything a user clicks/views), default to a WEB project: HTML + CSS + JS, with an optional package.json so the user can \`npx serve .\`. Final step prints "open index.html in a browser" or "run \`npx serve .\` then visit http://localhost:3000".
+- For AUTOMATION / SCRIPTING tasks (deploy pipeline, log cleanup, file rename batch, system audit, scheduled job, build/release script), generate the appropriate native shell (.ps1 / .sh) or language-specific script (.py / .js).
+- For LIBRARIES / CLI TOOLS / SERVICES, follow the idiomatic stack for that ecosystem (Node CLI, Python module, Go binary, etc.).
+- The TARGET SHELL determines HOW files are created in this script (heredoc syntax, mkdir flags, path separator), NOT what the project IS. A snooker scoreboard requested under \`shell=powershell\` should still produce \`index.html\` / \`app.js\` / \`style.css\` — not \`SnookerScoreboard.psm1\` with a \`.ps1\` console UI. The shell is the setup medium, not the runtime form.
+- Only generate a \`.ps1\` / \`.sh\` / \`.psm1\` as the project's main runtime artifact when the user EXPLICITLY asks for "command line", "CLI tool", "terminal app", "script", or the task is inherently administrative.
+
 Other rules:
 - Dangerous commands (e.g. ${ex.danger}) MUST be marked with [DANGER] at the end.
 - Mildly risky commands (e.g. ${ex.caution}) should be marked with [CAUTION].
