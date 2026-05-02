@@ -9,7 +9,11 @@ import { checkDanger } from '../core/danger';
 import { loadConfig } from '../utils/config';
 
 const SCAFFOLD_COLOR = chalk.hex('#ff8c00');
-const MULTISTEP_COLOR = chalk.hex('#5b9dd9'); // cyan-blue; distinct from explain's cyan and scaffold's orange
+// 4-bit bright blue (≈ #5C5CFF on most terminals). Use the ANSI primitive
+// rather than a truecolor hex like #5b9dd9 — the latter quantizes to plain
+// cyan in 256-color terminals, making it indistinguishable from explain's
+// chalk.cyan. blueBright keeps a clear separation across all color modes.
+const MULTISTEP_COLOR = chalk.blueBright;
 
 const TYPE_COLORS: Record<HistoryEntry['type'], (s: string) => string> = {
   generate: chalk.green,
