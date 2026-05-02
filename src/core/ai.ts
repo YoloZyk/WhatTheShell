@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot, ScriptResult, ScriptExplainResult, ScriptSection } from '../types';
-import { buildGeneratePrompt, buildExplainPrompt, buildExplainScriptPrompt, buildAskPrompt, buildScaffoldPrompt, buildScriptPrompt, buildClassifyPrompt } from './prompt';
+import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot, ScriptResult, FileExplainResult, FileSection } from '../types';
+import { buildGeneratePrompt, buildExplainPrompt, buildExplainFilePrompt, buildAskPrompt, buildScaffoldPrompt, buildScriptPrompt, buildClassifyPrompt } from './prompt';
 import type { ScaffoldContext } from './scaffoldContext';
 import { parseScriptResponse } from './script';
 
@@ -76,16 +76,24 @@ export class AIClient {
     return parseExplainResponse(raw);
   }
 
-  /** 解释多行脚本 (v0.4) */
-  async explainScript(content: string, filename: string, shell: ShellType, level: DetailLevel, language: Language, ctx?: ContextSnapshot): Promise<ScriptExplainResult> {
-    const prompt = buildExplainScriptPrompt(content, filename, shell, level, language, ctx);
+  /** 解释多行文件（脚本 / 代码 / 配置） (v0.4) */
+  async explainFile(
+    content: string,
+    filename: string,
+    langLabel: string,
+    level: DetailLevel,
+    language: Language,
+    ctx?: ContextSnapshot,
+    shellRiskHint?: { danger: string; caution: string },
+  ): Promise<FileExplainResult> {
+    const prompt = buildExplainFilePrompt(content, filename, langLabel, level, language, ctx, shellRiskHint);
     const raw = await this.chat(prompt);
     if (process.env.DEBUG_WTS) {
-      console.error('\n[DEBUG] Raw explainScript response:');
+      console.error('\n[DEBUG] Raw explainFile response:');
       console.error(raw);
       console.error('\n[DEBUG] End raw response\n');
     }
-    return parseExplainScriptResponse(raw, content);
+    return parseExplainFileResponse(raw, content);
   }
 
   /** 自由问答 */
@@ -280,17 +288,17 @@ function parseExplainResponse(raw: string): ExplainResult {
 }
 
 /**
- * 解析脚本解释响应。AI 输出 envelope ([DANGER]/[CAUTION]) → 多个 [SECTION]
+ * 解析文件解释响应。AI 输出 envelope ([DANGER]/[CAUTION]) → 多个 [SECTION]
  * L<a-b> + [EXPLAIN] block → 末尾 [SUMMARY]。code 字段由本函数从原 content
  * 按 range 切出（让 AI 不必回显原文）。容错：
  *   - 缺 b → 视为单行段（b = a）
  *   - 没产出任何 [SECTION] → 整段当 1 个 section，body 当 explanation
  *   - range 越界 → 截断到文件长度
  */
-function parseExplainScriptResponse(raw: string, content: string): ScriptExplainResult {
+function parseExplainFileResponse(raw: string, content: string): FileExplainResult {
   raw = stripReasoningTags(raw).replace(/\r\n/g, '\n').trim();
   const fileLines = content.split('\n');
-  const sections: ScriptSection[] = [];
+  const sections: FileSection[] = [];
   let summary = '';
   let risk: RiskLevel = 'safe';
   let warning: string | undefined;

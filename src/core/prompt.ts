@@ -16,7 +16,7 @@ const SHELL_STYLE_HINTS: Record<ShellType, string> = {
 };
 
 /** 每种 shell 下典型的"该标 DANGER/CAUTION"命令示例，帮助模型正确分级 */
-const SHELL_DANGER_EXAMPLES: Record<ShellType, { danger: string; caution: string }> = {
+export const SHELL_DANGER_EXAMPLES: Record<ShellType, { danger: string; caution: string }> = {
   bash: { danger: 'rm -rf, dd of=, mkfs, chmod 777 /, > /dev/sda', caution: 'sudo, kill -9, curl ... | bash, shutdown' },
   zsh: { danger: 'rm -rf, dd of=, mkfs, chmod 777 /, > /dev/sda', caution: 'sudo, kill -9, curl ... | bash, shutdown' },
   fish: { danger: 'rm -rf, dd of=, mkfs, chmod 777 /', caution: 'sudo, kill -9, curl ... | sh' },
@@ -111,45 +111,54 @@ Rules:
 Command: ${command}`;
 }
 
-/** 解释脚本（多行）的 Prompt (v0.4) */
-export function buildExplainScriptPrompt(
+/** 解释文件（多行代码）的 Prompt (v0.4)
+ *
+ * langLabel: 显示给 AI 的语言标识，如 "bash" / "python" / "Go"。
+ * shellRiskHint: shell 文件传入 SHELL_DANGER_EXAMPLES[shell] 提升精度；
+ *                非 shell 文件留空，prompt 自动用通用 destructive 例子。
+ */
+export function buildExplainFilePrompt(
   content: string,
   filename: string,
-  shell: ShellType,
+  langLabel: string,
   level: DetailLevel,
   language: Language,
   ctx?: ContextSnapshot,
+  shellRiskHint?: { danger: string; caution: string },
 ): string {
   const lang = language === 'zh' ? '中文' : 'English';
-  const ex = SHELL_DANGER_EXAMPLES[shell];
+  const ex = shellRiskHint || {
+    danger: 'irreversible deletes (rm -rf, drop database, format disk), credential exfiltration, arbitrary code execution from network input, overwriting system files',
+    caution: 'sudo / privilege escalation, network calls to unverified hosts, modifying global config, disabling security checks',
+  };
 
   const levelInstructions: Record<DetailLevel, string> = {
     brief: 'Aim for 2-4 sections; each [EXPLAIN] ≤ 1 sentence.',
-    normal: 'Aim for 4-8 sections; each [EXPLAIN] 1-3 sentences. Group related lines (e.g. consecutive variable assignments, a heredoc + the cat that emits it) into a single section.',
-    detail: 'Aim for 6-12 sections; each [EXPLAIN] can span multiple sentences and should call out side effects, error handling, and gotchas. Still group purely structural lines (shebang + set -e, etc.) into a single section.',
+    normal: 'Aim for 4-8 sections; each [EXPLAIN] 1-3 sentences. Group related lines (e.g. consecutive variable assignments, a heredoc + the cat that emits it, a function definition + its docstring) into a single section.',
+    detail: 'Aim for 6-12 sections; each [EXPLAIN] can span multiple sentences and should call out side effects, error handling, and gotchas. Still group purely structural lines (shebang + set -e, imports block, etc.) into a single section.',
   };
 
   // 给 AI 看的内容附行号，方便它精确指引段落范围
   const numbered = content.split('\n').map((line, i) => `${i + 1}: ${line}`).join('\n');
 
-  return `${ctxPrefix(ctx)}You are a shell script analyzer. The user provides a multi-line script with line numbers prefixed; produce a sectioned explanation.
+  return `${ctxPrefix(ctx)}You are a code/script analyzer. The user provides a multi-line file with line numbers prefixed; produce a sectioned explanation.
 
 Rules:
 - Respond in ${lang}
-- Target shell: ${shell}
+- Target language: ${langLabel}
 - If ANY line is destructive (e.g. ${ex.danger}), open the response with a single line: [DANGER] <risk description in ${lang}>
 - If mildly risky (e.g. ${ex.caution}), open with: [CAUTION] <risk description in ${lang}>
-- For safe scripts, omit the envelope entirely
-- Divide the script into contiguous logical SECTIONS (group adjacent lines by purpose — env setup, config write, build, deploy, etc.). Comments and blank lines should be folded into the section they introduce. Sections must cover every line, in order.
+- For safe files, omit the envelope entirely
+- Divide the file into contiguous logical SECTIONS (group adjacent lines by purpose — imports, env setup, function definitions, main logic, deploy steps, etc.). Comments and blank lines should be folded into the section they introduce. Sections must cover every line, in order.
 - ${levelInstructions[level]}
 - Output each section as TWO consecutive markers:
   [SECTION] L<a-b>
   [EXPLAIN] <explanation, may span multiple lines>
-  ...where a and b are the 1-based line numbers shown in the script (inclusive; a single-line section uses L<a-a>). The explanation may span multiple lines, but must NOT contain another [SECTION] or [EXPLAIN] tag.
+  ...where a and b are the 1-based line numbers shown in the file (inclusive; a single-line section uses L<a-a>). The explanation may span multiple lines, but must NOT contain another [SECTION] or [EXPLAIN] tag.
 - After all sections, end with a single line: [SUMMARY] <one-sentence overall purpose>
 - Do not wrap output in markdown fences. Do not echo the original code lines back.
 
-Script (filename: ${filename}):
+File (filename: ${filename}):
 ${numbered}`;
 }
 

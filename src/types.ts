@@ -96,8 +96,8 @@ export interface CommandSegment {
   explanation: string;
 }
 
-/** 脚本解释中的一个逻辑段 (v0.4) */
-export interface ScriptSection {
+/** 文件解释中的一个逻辑段 (v0.4) */
+export interface FileSection {
   /** 起止行号（1-based, inclusive）；AI 漏标时为 undefined */
   range?: [number, number];
   /** 该段对应的代码（多行原文） */
@@ -106,9 +106,9 @@ export interface ScriptSection {
   explanation: string;
 }
 
-/** AI 脚本解释结果 (v0.4) */
-export interface ScriptExplainResult {
-  sections: ScriptSection[];
+/** AI 文件解释结果 (v0.4) */
+export interface FileExplainResult {
+  sections: FileSection[];
   summary: string;
   risk: RiskLevel;
   warning?: string;

@@ -1,4 +1,4 @@
-import type { RiskLevel, CommandSegment, ScriptSection } from '../types';
+import type { RiskLevel, CommandSegment, FileSection } from '../types';
 import chalk from 'chalk';
 import { success as uiSuccess, error as uiError, warn as uiWarn } from './ui';
 
@@ -138,10 +138,10 @@ export async function displayExplanation(
   console.log();
 }
 
-/** 显示脚本解释（多行脚本，按逻辑段分块展示） */
-export async function displayScriptExplanation(
+/** 显示文件解释（多行文件，按逻辑段分块展示） */
+export async function displayFileExplanation(
   filename: string,
-  sections: ScriptSection[],
+  sections: FileSection[],
   summary: string,
   risk: RiskLevel,
   warning?: string,
