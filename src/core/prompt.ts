@@ -1,4 +1,4 @@
-import type { ShellType, DetailLevel, Language, ContextSnapshot } from '../types';
+import type { ShellType, DetailLevel, Language, ContextSnapshot, AttachedFile } from '../types';
 import { renderContextForPrompt } from './context';
 import { renderScaffoldContextForPrompt, type ScaffoldContext } from './scaffoldContext';
 
@@ -171,22 +171,48 @@ File (filename: ${filename}):
 ${numbered}`;
 }
 
-/** 自由问答的 Prompt */
+/** 自由问答的 Prompt
+ *
+ * `wts a` 用 ScaffoldContext（含 manifest 摘要 + INTERESTING_FILES）作为项目 briefing；
+ * 比 generate/explain 的 shallow ContextSnapshot 信息更厚，因为 ask 的问题往往是
+ * "整个项目什么情况"、"这个模块的设计" 这类需要项目感知的提问。
+ */
 export function buildAskPrompt(
   question: string,
   language: Language,
-  ctx?: ContextSnapshot,
+  ctx?: ScaffoldContext,
+  attachments?: AttachedFile[],
 ): string {
   const lang = language === 'zh' ? '中文' : 'English';
-  return `${ctxPrefix(ctx)}You are a shell and terminal expert assistant. Answer the user's question clearly and concisely.
+  const ctxBlock = ctx ? renderScaffoldContextForPrompt(ctx) + '\n\n' : '';
+  const attachmentBlock = attachments && attachments.length > 0
+    ? renderAttachmentsForPrompt(attachments) + '\n\n'
+    : '';
+  const attachmentRule = attachments && attachments.length > 0
+    ? '\n- The user\'s question may reference files via [file:path] markers; their full content is shown above under "## Attached files".'
+    : '';
+
+  return `${ctxBlock}${attachmentBlock}You are a shell and terminal expert assistant. Answer the user's question clearly and concisely.
 
 Rules:
 - Respond in ${lang}
-- Focus on shell/terminal/command-line topics
+- Focus on shell/terminal/command-line topics, but if the user has attached project files, address questions about those files directly (security review, design feedback, refactor suggestions — whatever they ask)
 - Include examples when helpful
-- Do not wrap output in code blocks unless showing a command example
+- Do not wrap output in code blocks unless showing a command example${attachmentRule}
 
 Question: ${question}`;
+}
+
+/** 渲染 @path 附件块。每个文件加行号方便 AI 引用具体行。 */
+function renderAttachmentsForPrompt(files: AttachedFile[]): string {
+  const lines: string[] = ['## Attached files'];
+  files.forEach((f, i) => {
+    lines.push('');
+    lines.push(`### File ${i + 1}: ${f.path} (${f.lang}, ${f.lineCount} lines)`);
+    const numbered = f.content.split('\n').map((line, idx) => `${idx + 1}: ${line}`).join('\n');
+    lines.push(numbered);
+  });
+  return lines.join('\n');
 }
 
 /** 任务分类 prompt (v0.4) */

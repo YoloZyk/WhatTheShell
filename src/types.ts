@@ -61,6 +61,18 @@ export interface ScaffoldOptions {
   shell?: ShellType;
 }
 
+/** 用户通过 @path token 附加进来的文件 (v0.4) */
+export interface AttachedFile {
+  /** 相对 cwd 的路径，用于显示和 prompt 标记 */
+  path: string;
+  /** 文件文本内容 */
+  content: string;
+  /** 显示给 AI 的语言标签（如 "typescript" / "yaml" / "bash"），来自 detectFileLang */
+  lang: string;
+  /** 行数，用于头部统计 */
+  lineCount: number;
+}
+
 /** 历史记录条目 */
 export interface HistoryEntry {
   id: number;

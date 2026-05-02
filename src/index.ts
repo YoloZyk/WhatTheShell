@@ -185,22 +185,36 @@ function renderExplainHelp(): void {
 function renderAskHelp(): void {
   console.log();
   console.log(`${chalk.cyan('┌─')} ${chalk.bold('Ask')} ${chalk.gray('─'.repeat(55))}`);
-  console.log(`${chalk.cyan('│')}  Free-form Q&A about shells, terminals, and CLI tooling`);
+  console.log(`${chalk.cyan('│')}  Free-form Q&A about shells, terminals, and project files`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts ask')} ${chalk.cyan('<question>')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} ${chalk.cyan('<question>')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts ask')} ${chalk.cyan('[question]')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} ${chalk.cyan('[question]')}`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
   console.log(`${chalk.cyan('│')}  ${chalk.green('-h, --help'.padEnd(14))} ${chalk.gray('Display this help')}`);
   console.log(`${chalk.cyan('│')}`);
 
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('File attachments')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('Mention files inline with')} ${chalk.cyan('@path')}${chalk.gray(' — they get read and sent')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('with the question. Directories expand to their direct files.')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('Limits: 100 KB / file, 200 KB total, 20 files. Failed lookups')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('stay as plain text — no error.')}`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('Interactive mode')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('Run')} ${chalk.green('wts a')} ${chalk.gray('with no question to pick files from a list')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('and then enter your question (handy when you don\'t know paths).')}`);
+  console.log(`${chalk.cyan('│')}`);
+
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Examples')}`);
   console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "diff between find and fd"`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "why does my zsh hang on git status"`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "what does set -e do"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "@src/auth.ts has any obvious bugs?"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "compare @src/old.ts and @src/new.ts"`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')} "what does @src/utils/ do?"      ${chalk.gray('# directory expand')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts a')}                              ${chalk.gray('# interactive picker')}`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('└─')} ${chalk.gray(`Run ${chalk.cyan('wts --help')} for the full command list`)}`);
@@ -404,10 +418,10 @@ program
 
 // ask
 program
-  .command('ask <question>')
+  .command('ask [question]')
   .alias('a')
-  .description('Free-form Q&A about shells, terminals, and CLI tooling')
-  .action(async (question: string) => {
+  .description('Free-form Q&A with optional @path file attachments')
+  .action(async (question?: string) => {
     await askCommand(question);
   });
 

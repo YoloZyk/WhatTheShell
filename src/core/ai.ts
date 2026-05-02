@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot, ScriptResult, FileExplainResult, FileSection, FileIssue } from '../types';
+import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot, ScriptResult, FileExplainResult, FileSection, FileIssue, AttachedFile } from '../types';
 import { buildGeneratePrompt, buildExplainPrompt, buildExplainFilePrompt, buildAskPrompt, buildScaffoldPrompt, buildScriptPrompt, buildClassifyPrompt } from './prompt';
 import type { ScaffoldContext } from './scaffoldContext';
 import { parseScriptResponse } from './script';
@@ -97,8 +97,13 @@ export class AIClient {
   }
 
   /** 自由问答 */
-  async ask(question: string, language: Language, ctx?: ContextSnapshot): Promise<string> {
-    const prompt = buildAskPrompt(question, language, ctx);
+  async ask(
+    question: string,
+    language: Language,
+    ctx?: ScaffoldContext,
+    attachments?: AttachedFile[],
+  ): Promise<string> {
+    const prompt = buildAskPrompt(question, language, ctx, attachments);
     const raw = await this.chat(prompt);
     return stripReasoningTags(raw);
   }
