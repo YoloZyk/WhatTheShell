@@ -9,19 +9,26 @@ import { checkDanger } from '../core/danger';
 import { loadConfig } from '../utils/config';
 
 const SCAFFOLD_COLOR = chalk.hex('#ff8c00');
+const MULTISTEP_COLOR = chalk.hex('#5b9dd9'); // cyan-blue; distinct from explain's cyan and scaffold's orange
 
 const TYPE_COLORS: Record<HistoryEntry['type'], (s: string) => string> = {
   generate: chalk.green,
   explain: chalk.cyan,
   ask: chalk.magenta,
   scaffold: SCAFFOLD_COLOR,
-  // Legacy alias — entries written before the script→scaffold rename. Same color.
+  // Legacy alias — entries written before the v0.2 script→scaffold rename. Same color.
   script: SCAFFOLD_COLOR,
+  multistep: MULTISTEP_COLOR,
 };
 
-/** Display label for a history entry type — collapses legacy 'script' onto 'scaffold'. */
+/** Display label for a history entry type. Special cases:
+ *  - 'script' is a v0.2 legacy alias for 'scaffold' (new code never writes it)
+ *  - 'multistep' is the v0.4 `wts g` multi-step output type — show as 'steps'
+ *    so the row reads `[steps]` and is clearly different from `[scaffold]` */
 function typeLabel(type: HistoryEntry['type']): string {
-  return type === 'script' ? 'scaffold' : type;
+  if (type === 'script') return 'scaffold';
+  if (type === 'multistep') return 'steps';
+  return type;
 }
 
 export async function historyCommand(options: { clear?: boolean }): Promise<void> {
@@ -91,13 +98,16 @@ function formatRow(entry: HistoryEntry): string {
 
 function showDetailPanel(entry: HistoryEntry): void {
   const config = loadConfig();
-  const isScaffold = entry.type === 'scaffold' || entry.type === 'script';
+  // 'scaffold' (current), 'script' (legacy alias), 'multistep' (wts g v0.4)
+  // all store multi-line shell-like text. Render with the same code-formatted
+  // detail panel and run danger check over the whole body.
+  const outputIsScript = entry.type === 'scaffold' || entry.type === 'script' || entry.type === 'multistep';
 
-  // generate: stored output IS the command. scaffold/script: stored output IS the script body.
+  // generate: stored output IS the command. scaffold/script/multistep: stored output IS the script body.
   // explain: input is the command being explained. ask: free-form Q&A, no command involved.
   let risk: RiskLevel = 'safe';
   let warning: string | undefined;
-  if (entry.type === 'generate' || isScaffold) {
+  if (entry.type === 'generate' || outputIsScript) {
     const check = checkDanger(entry.output, config.language);
     risk = check.risk;
     if (check.warnings.length > 0) warning = check.warnings.join('; ');
@@ -133,13 +143,14 @@ function showDetailPanel(entry: HistoryEntry): void {
   console.log(`${borderFn('│')}`);
 
   const outputLabel = entry.type === 'generate' ? 'Command:'
-                    : isScaffold ? 'Scaffold:'
+                    : entry.type === 'multistep' ? 'Script:'
+                    : outputIsScript ? 'Scaffold:'
                     : entry.type === 'explain' ? 'Summary:'
                     : 'Answer:';
   console.log(`${borderFn('│')}  ${chalk.gray(outputLabel)}`);
   for (const line of entry.output.split('\n')) {
     let styled: string;
-    if (isScaffold) {
+    if (outputIsScript) {
       const isComment = line.trim().startsWith('#');
       styled = isComment ? chalk.gray(line) : chalk.green.bold(line);
     } else {
@@ -206,6 +217,11 @@ async function pickAction(entry: HistoryEntry, prompts: any): Promise<string> {
     });
     choices.push({
       name: `${chalk.cyan('Copy command')}  ${chalk.gray('to clipboard')}`,
+      value: 'copy_output',
+    });
+  } else if (entry.type === 'multistep') {
+    choices.push({
+      name: `${chalk.cyan('Copy script')}   ${chalk.gray('multi-step script to clipboard')}`,
       value: 'copy_output',
     });
   } else if (entry.type === 'scaffold' || entry.type === 'script') {

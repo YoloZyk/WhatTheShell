@@ -397,8 +397,10 @@ async function runMultiStepMode(
 
     // Record to history at generation time (matches single-command generate
     // semantics: log the AI output regardless of whether the user runs it).
+    // Use 'multistep' (NOT 'script' — that's a legacy alias for 'scaffold')
+    // so the history picker renders this with its own label / menu / color.
     addHistory({
-      type: 'script',
+      type: 'multistep',
       input: description,
       output: formatScriptForHistory(result.steps),
     });
@@ -1259,7 +1261,7 @@ Step 2: <command>
       // Record the improved version to history as a separate entry. Tag the
       // input so users can tell it apart from the original generation.
       addHistory({
-        type: 'script',
+        type: 'multistep',
         input: `${originalDescription} (improved: ${feedback})`,
         output: formatScriptForHistory(result.steps),
       });

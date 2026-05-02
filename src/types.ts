@@ -67,10 +67,12 @@ export interface HistoryEntry {
   timestamp: string;
   /**
    * Entry type. `'script'` is a legacy alias for `'scaffold'` — old entries
-   * on disk from before the rename still carry it; new entries always use
-   * `'scaffold'`. History UI renders both identically.
+   * on disk from before the v0.2 rename still carry it; the history picker
+   * renders both identically. `'multistep'` (v0.4) is a NEW, independent type
+   * for `wts g` multi-step script output — it must NOT be conflated with the
+   * legacy `'script'` alias even though both contain multi-line shell text.
    */
-  type: 'generate' | 'explain' | 'ask' | 'script' | 'scaffold';
+  type: 'generate' | 'explain' | 'ask' | 'script' | 'scaffold' | 'multistep';
   input: string;
   output: string;
 }
