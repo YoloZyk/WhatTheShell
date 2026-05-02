@@ -38,6 +38,8 @@ const SHELL_SHEBANG: Record<ShellType, string> = {
   powershell: '#Requires -Version 5.1',
 };
 
+export { SHELL_SHEBANG };
+
 export const SHELL_SCRIPT_EXT: Record<ShellType, string> = {
   bash: 'sh',
   zsh: 'sh',
