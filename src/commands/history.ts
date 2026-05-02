@@ -1,9 +1,9 @@
 import type { HistoryEntry, RiskLevel } from '../types';
 import chalk from 'chalk';
-import * as readline from 'readline';
 import { getHistory, clearHistory, searchHistory } from '../utils/history';
 import { displaySuccess, displayError } from '../utils/display';
 import { copyToClipboard } from '../utils/clipboard';
+import { pickWithEsc } from '../utils/inquirer';
 import { runCommand } from './generate';
 import { checkDanger } from '../core/danger';
 import { loadConfig } from '../utils/config';
@@ -290,36 +290,6 @@ async function applyAction(action: string, entry: HistoryEntry): Promise<void> {
   }
 }
 
-// ---------- Esc-cancel wrapper ----------
-
-/**
- * Run an inquirer prompt with Esc bound to cancel. @inquirer/prompts 8.x only
- * binds Ctrl+C natively; this attaches a stdin keypress listener that aborts
- * the supplied AbortSignal when the user hits Esc, then catches the resulting
- * AbortPromptError and returns null.
- */
-async function pickWithEsc<T>(runner: (signal: AbortSignal) => Promise<T>): Promise<T | null> {
-  const controller = new AbortController();
-  let listener: ((str: string, key: any) => void) | null = null;
-
-  if (process.stdin.isTTY) {
-    readline.emitKeypressEvents(process.stdin);
-    listener = (_str, key) => {
-      if (key && key.name === 'escape') controller.abort();
-    };
-    process.stdin.on('keypress', listener);
-  }
-
-  try {
-    return await runner(controller.signal);
-  } catch (err: any) {
-    if (controller.signal.aborted || isCancelled(err)) return null;
-    throw err;
-  } finally {
-    if (listener) process.stdin.removeListener('keypress', listener);
-  }
-}
-
 // ---------- helpers ----------
 
 /** Return the column count a string takes when rendered to a monospace terminal. */
@@ -385,11 +355,4 @@ function relativeTime(iso: string): string {
   if (day === 1) return 'yesterday';
   if (day < 7) return `${day} days ago`;
   return iso.slice(0, 10);
-}
-
-function isCancelled(err: any): boolean {
-  if (!err) return false;
-  const name = String(err.name || '');
-  if (name === 'ExitPromptError' || name === 'AbortPromptError' || name === 'AbortError') return true;
-  return /User force closed/i.test(String(err.message || ''));
 }
