@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot, ScriptResult } from '../types';
-import { buildGeneratePrompt, buildExplainPrompt, buildAskPrompt, buildScaffoldPrompt, buildScriptPrompt, buildClassifyPrompt } from './prompt';
+import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot, ScriptResult, ScriptExplainResult, ScriptSection } from '../types';
+import { buildGeneratePrompt, buildExplainPrompt, buildExplainScriptPrompt, buildAskPrompt, buildScaffoldPrompt, buildScriptPrompt, buildClassifyPrompt } from './prompt';
 import type { ScaffoldContext } from './scaffoldContext';
 import { parseScriptResponse } from './script';
 
@@ -74,6 +74,18 @@ export class AIClient {
     const prompt = buildExplainPrompt(command, level, language, ctx);
     const raw = await this.chat(prompt);
     return parseExplainResponse(raw);
+  }
+
+  /** 解释多行脚本 (v0.4) */
+  async explainScript(content: string, filename: string, shell: ShellType, level: DetailLevel, language: Language, ctx?: ContextSnapshot): Promise<ScriptExplainResult> {
+    const prompt = buildExplainScriptPrompt(content, filename, shell, level, language, ctx);
+    const raw = await this.chat(prompt);
+    if (process.env.DEBUG_WTS) {
+      console.error('\n[DEBUG] Raw explainScript response:');
+      console.error(raw);
+      console.error('\n[DEBUG] End raw response\n');
+    }
+    return parseExplainScriptResponse(raw, content);
   }
 
   /** 自由问答 */
@@ -265,4 +277,81 @@ function parseExplainResponse(raw: string): ExplainResult {
   }
 
   return { segments, summary, risk, warning };
+}
+
+/**
+ * 解析脚本解释响应。AI 输出 envelope ([DANGER]/[CAUTION]) → 多个 [SECTION]
+ * L<a-b> + [EXPLAIN] block → 末尾 [SUMMARY]。code 字段由本函数从原 content
+ * 按 range 切出（让 AI 不必回显原文）。容错：
+ *   - 缺 b → 视为单行段（b = a）
+ *   - 没产出任何 [SECTION] → 整段当 1 个 section，body 当 explanation
+ *   - range 越界 → 截断到文件长度
+ */
+function parseExplainScriptResponse(raw: string, content: string): ScriptExplainResult {
+  raw = stripReasoningTags(raw).replace(/\r\n/g, '\n').trim();
+  const fileLines = content.split('\n');
+  const sections: ScriptSection[] = [];
+  let summary = '';
+  let risk: RiskLevel = 'safe';
+  let warning: string | undefined;
+
+  // envelope: [DANGER]/[CAUTION] <risk>
+  let body = raw;
+  const envMatch = body.match(/^\[(DANGER|CAUTION)\]\s*([^\n]*)\n?/);
+  if (envMatch) {
+    risk = envMatch[1] === 'DANGER' ? 'danger' : 'warning';
+    warning = envMatch[2].trim() || undefined;
+    body = body.slice(envMatch[0].length).trim();
+  }
+
+  // pull out [SUMMARY] (last line typically)
+  const summaryMatch = body.match(/\n?\[SUMMARY\]\s*([^\n]*)\s*$/);
+  if (summaryMatch) {
+    summary = summaryMatch[1].trim();
+    body = body.slice(0, summaryMatch.index).trim();
+  }
+
+  // section markers: [SECTION] L<a>(-<b>)?
+  const sectionRegex = /^\[SECTION\]\s+L(\d+)(?:-(\d+))?\s*$/gm;
+  const matches: Array<{ start: number; end: number; from: number; to: number }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = sectionRegex.exec(body)) !== null) {
+    const from = parseInt(m[1], 10);
+    const to = m[2] ? parseInt(m[2], 10) : from;
+    matches.push({ start: m.index, end: m.index + m[0].length, from, to });
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const cur = matches[i];
+    const next = matches[i + 1];
+    const blockText = body.slice(cur.end, next ? next.start : body.length).trim();
+    const explainMatch = blockText.match(/^\[EXPLAIN\]\s*([\s\S]*)$/);
+    const explanation = (explainMatch ? explainMatch[1] : blockText).trim();
+
+    const a = Math.max(1, cur.from);
+    const b = Math.min(fileLines.length, Math.max(a, cur.to));
+    const codeLines: string[] = [];
+    for (let ln = a; ln <= b; ln++) {
+      codeLines.push(fileLines[ln - 1] ?? '');
+    }
+    sections.push({
+      range: [a, b],
+      code: codeLines.join('\n'),
+      explanation,
+    });
+  }
+
+  // 兜底：AI 完全没遵循 [SECTION] 协议时，整段当 1 个 section 让用户至少看到内容
+  if (sections.length === 0) {
+    sections.push({
+      code: content,
+      explanation: body || summary || '',
+    });
+  }
+
+  if (!summary) {
+    summary = sections[sections.length - 1]?.explanation || '';
+  }
+
+  return { sections, summary, risk, warning };
 }

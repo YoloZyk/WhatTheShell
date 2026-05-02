@@ -111,6 +111,48 @@ Rules:
 Command: ${command}`;
 }
 
+/** 解释脚本（多行）的 Prompt (v0.4) */
+export function buildExplainScriptPrompt(
+  content: string,
+  filename: string,
+  shell: ShellType,
+  level: DetailLevel,
+  language: Language,
+  ctx?: ContextSnapshot,
+): string {
+  const lang = language === 'zh' ? '中文' : 'English';
+  const ex = SHELL_DANGER_EXAMPLES[shell];
+
+  const levelInstructions: Record<DetailLevel, string> = {
+    brief: 'Aim for 2-4 sections; each [EXPLAIN] ≤ 1 sentence.',
+    normal: 'Aim for 4-8 sections; each [EXPLAIN] 1-3 sentences. Group related lines (e.g. consecutive variable assignments, a heredoc + the cat that emits it) into a single section.',
+    detail: 'Aim for 6-12 sections; each [EXPLAIN] can span multiple sentences and should call out side effects, error handling, and gotchas. Still group purely structural lines (shebang + set -e, etc.) into a single section.',
+  };
+
+  // 给 AI 看的内容附行号，方便它精确指引段落范围
+  const numbered = content.split('\n').map((line, i) => `${i + 1}: ${line}`).join('\n');
+
+  return `${ctxPrefix(ctx)}You are a shell script analyzer. The user provides a multi-line script with line numbers prefixed; produce a sectioned explanation.
+
+Rules:
+- Respond in ${lang}
+- Target shell: ${shell}
+- If ANY line is destructive (e.g. ${ex.danger}), open the response with a single line: [DANGER] <risk description in ${lang}>
+- If mildly risky (e.g. ${ex.caution}), open with: [CAUTION] <risk description in ${lang}>
+- For safe scripts, omit the envelope entirely
+- Divide the script into contiguous logical SECTIONS (group adjacent lines by purpose — env setup, config write, build, deploy, etc.). Comments and blank lines should be folded into the section they introduce. Sections must cover every line, in order.
+- ${levelInstructions[level]}
+- Output each section as TWO consecutive markers:
+  [SECTION] L<a-b>
+  [EXPLAIN] <explanation, may span multiple lines>
+  ...where a and b are the 1-based line numbers shown in the script (inclusive; a single-line section uses L<a-a>). The explanation may span multiple lines, but must NOT contain another [SECTION] or [EXPLAIN] tag.
+- After all sections, end with a single line: [SUMMARY] <one-sentence overall purpose>
+- Do not wrap output in markdown fences. Do not echo the original code lines back.
+
+Script (filename: ${filename}):
+${numbered}`;
+}
+
 /** 自由问答的 Prompt */
 export function buildAskPrompt(
   question: string,

@@ -52,6 +52,8 @@ export interface GenerateOptions {
 export interface ExplainOptions {
   brief?: boolean;
   detail?: boolean;
+  /** 强制按文件读取参数；不存在则报错（不回退到命令模式） (v0.4) */
+  file?: string;
 }
 
 /** scaffold 命令选项 */
@@ -92,6 +94,24 @@ export interface ExplainResult {
 export interface CommandSegment {
   text: string;
   explanation: string;
+}
+
+/** 脚本解释中的一个逻辑段 (v0.4) */
+export interface ScriptSection {
+  /** 起止行号（1-based, inclusive）；AI 漏标时为 undefined */
+  range?: [number, number];
+  /** 该段对应的代码（多行原文） */
+  code: string;
+  /** 该段的解释文字 */
+  explanation: string;
+}
+
+/** AI 脚本解释结果 (v0.4) */
+export interface ScriptExplainResult {
+  sections: ScriptSection[];
+  summary: string;
+  risk: RiskLevel;
+  warning?: string;
 }
 
 /** 项目标记文件识别到的信息 (v0.2) */

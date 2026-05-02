@@ -1,4 +1,4 @@
-import type { RiskLevel, CommandSegment } from '../types';
+import type { RiskLevel, CommandSegment, ScriptSection } from '../types';
 import chalk from 'chalk';
 import { success as uiSuccess, error as uiError, warn as uiWarn } from './ui';
 
@@ -128,6 +128,89 @@ export async function displayExplanation(
   }
 
   // Summary
+  if (summary) {
+    console.log(`${borderFn('│')}`);
+    console.log(`${borderFn('│')}  ${chalk.gray('Summary:')} ${chalk.white(summary)}`);
+  }
+
+  console.log(`${borderFn('│')}`);
+  console.log(`${borderFn('└─')} ${chalk.gray('─'.repeat(52))}`);
+  console.log();
+}
+
+/** 显示脚本解释（多行脚本，按逻辑段分块展示） */
+export async function displayScriptExplanation(
+  filename: string,
+  sections: ScriptSection[],
+  summary: string,
+  risk: RiskLevel,
+  warning?: string,
+): Promise<void> {
+  console.log();
+
+  const borderFn = risk === 'danger' ? chalk.red :
+                   risk === 'warning' ? chalk.yellow :
+                   chalk.cyan;
+  const labelFn = risk === 'danger' ? chalk.bgRed.white.bold :
+                  risk === 'warning' ? chalk.bgYellow.black.bold :
+                  chalk.cyan;
+  const warnFn = risk === 'danger' ? chalk.red :
+                 risk === 'warning' ? chalk.yellow :
+                 chalk.white;
+
+  let label = `[explain: ${filename}]`;
+  if (risk === 'danger') label = `[explain ⚠ DANGER: ${filename}]`;
+  else if (risk === 'warning') label = `[explain ! CAUTION: ${filename}]`;
+
+  const labelLen = label.length + 4;
+  const lineLen = Math.max(1, 60 - labelLen);
+  const line = '─'.repeat(lineLen);
+
+  console.log(`${borderFn('┌─')} ${labelFn(label)} ${borderFn(line)}`);
+
+  if (warning) {
+    console.log(`${borderFn('│')}  ${warnFn(warning)}`);
+  }
+
+  // 行号 padding 取最大行号宽度（兜底 1 防止 padStart(0)）
+  const maxLineNum = sections.reduce((acc, s) => Math.max(acc, s.range?.[1] ?? 0), 0);
+  const lnPad = Math.max(1, String(maxLineNum).length);
+
+  sections.forEach((sec, i) => {
+    console.log(`${borderFn('│')}`);
+    const rangeLabel = sec.range
+      ? sec.range[0] === sec.range[1]
+        ? `L${sec.range[0]}`
+        : `L${sec.range[0]}-${sec.range[1]}`
+      : '';
+    const header = rangeLabel
+      ? `§${i + 1}  ${chalk.gray(rangeLabel)}`
+      : `§${i + 1}`;
+    console.log(`${borderFn('│')}  ${chalk.cyan(header)}`);
+
+    // 代码行（带行号）
+    const codeLines = sec.code.split('\n');
+    const start = sec.range?.[0] ?? 1;
+    codeLines.forEach((cline, idx) => {
+      const lnNum = String(start + idx).padStart(lnPad, ' ');
+      console.log(`${borderFn('│')}    ${chalk.gray(lnNum)}  ${chalk.green(cline)}`);
+    });
+
+    // 解释（与代码空一行隔开）
+    if (sec.explanation) {
+      console.log(`${borderFn('│')}`);
+      const explLines = sec.explanation.split('\n');
+      explLines.forEach((eline) => {
+        const trimmed = eline.trimEnd();
+        if (!trimmed) {
+          console.log(`${borderFn('│')}`);
+        } else {
+          console.log(`${borderFn('│')}    ${chalk.white('→ ' + trimmed)}`);
+        }
+      });
+    }
+  });
+
   if (summary) {
     console.log(`${borderFn('│')}`);
     console.log(`${borderFn('│')}  ${chalk.gray('Summary:')} ${chalk.white(summary)}`);

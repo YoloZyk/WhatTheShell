@@ -26,7 +26,7 @@ function showWelcome(): void {
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Commands')}`);
   console.log(`${chalk.cyan('│')}`);
   console.log(`${chalk.cyan('│')}  ${chalk.green('[g]enerate')}  "deploy to prod"     Generate a shell command`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('[e]xplain')}   "git rebase -i"      Explain a command`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('[e]xplain')}   "git rebase -i"      Explain a command or script`);
   console.log(`${chalk.cyan('│')}  ${chalk.green('[a]sk')}       "how does tee work"  Free-form Q&A`);
   console.log(`${chalk.cyan('│')}`);
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Shell Integration')}`);
@@ -61,7 +61,7 @@ function renderHelp(): void {
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Commands')}`);
   const commands = [
     { name: 'generate|g', desc: 'Generate a shell command from natural language' },
-    { name: 'explain|e', desc: 'Explain an existing shell command' },
+    { name: 'explain|e', desc: 'Explain a shell command or script file' },
     { name: 'ask|a', desc: 'Free-form Q&A about shells and terminals' },
     { name: 'scaffold', desc: 'Draft a setup script for project files (review and adapt before running)' },
     { name: 'init', desc: 'Interactive setup wizard' },
@@ -144,29 +144,38 @@ function renderGenerateHelp(): void {
 function renderExplainHelp(): void {
   console.log();
   console.log(`${chalk.cyan('┌─')} ${chalk.bold('Explain')} ${chalk.gray('─'.repeat(51))}`);
-  console.log(`${chalk.cyan('│')}  Explain an existing shell command`);
+  console.log(`${chalk.cyan('│')}  Explain an existing shell command or script file`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts explain')} ${chalk.cyan('<command>')} ${chalk.gray('[options]')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} ${chalk.cyan('<command>')} ${chalk.gray('[options]')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts explain')} ${chalk.cyan('<command|path>')} ${chalk.gray('[options]')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} ${chalk.cyan('<command|path>')} ${chalk.gray('[options]')}`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Options')}`);
   const opts = [
     { flag: '-b, --brief', desc: 'One-sentence summary' },
     { flag: '-d, --detail', desc: 'Full breakdown including side effects' },
+    { flag: '-f, --file <path>', desc: 'Force the argument to be read as a script file' },
     { flag: '-h, --help', desc: 'Display this help' },
   ];
   for (const o of opts) {
-    console.log(`${chalk.cyan('│')}  ${chalk.green(o.flag.padEnd(14))} ${chalk.gray(o.desc)}`);
+    console.log(`${chalk.cyan('│')}  ${chalk.green(o.flag.padEnd(20))} ${chalk.gray(o.desc)}`);
   }
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.bold('File detection')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('Argument is auto-treated as a script file when it')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('contains a path separator OR ends in .sh/.bash/.zsh/')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('.fish/.ps1/.psm1, AND the file exists, is ≤ 100 KB,')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.gray('and is not binary. Use --file to force.')}`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Examples')}`);
   console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} "git rebase -i HEAD~3"`);
   console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} "find . -size +10M" ${chalk.cyan('-b')}`);
-  console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} "ssh -L 8080:localhost:80 host" ${chalk.cyan('-d')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} ./deploy.sh                 ${chalk.gray('# auto file mode')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.green('wts e')} ${chalk.cyan('--file')} scripts/build.ps1   ${chalk.gray('# force file mode')}`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('└─')} ${chalk.gray(`Run ${chalk.cyan('wts --help')} for the full command list`)}`);
@@ -385,9 +394,10 @@ program
 program
   .command('explain <command>')
   .alias('e')
-  .description('Explain an existing shell command')
+  .description('Explain an existing shell command or script file')
   .option('-b, --brief', 'One-sentence summary')
   .option('-d, --detail', 'Full breakdown including side effects')
+  .option('-f, --file <path>', 'Force the argument to be read as a script file (errors if path missing)')
   .action(async (command: string, options) => {
     await explainCommand(command, options);
   });
