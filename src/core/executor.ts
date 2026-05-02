@@ -107,82 +107,9 @@ export class StepExecutor {
     if (this.shell === 'powershell') {
       // PS single-quoted strings escape ' as ''. Backslashes are literal.
       const sentinelLit = sentinelFile.replace(/'/g, "''");
-      // Why try/finally with codepage restore:
-      // [Console]::OutputEncoding's setter calls Win32 SetConsoleOutputCP,
-      // which mutates the codepage of the console ATTACHED to this process —
-      // and that console is shared with the parent PowerShell (spawn doesn't
-      // detach console by default). Without restoring on exit, the parent's
-      // PSReadLine keeps rendering future input/history under the assumption
-      // of the OLD codepage (GBK on Chinese Windows), so any Chinese chars
-      // typed/recalled after wts ran show up as mojibake.
-      //
-      // Why the Set-Content / Out-File / Add-Content overrides:
-      // PS 5.1's `-Encoding utf8` always emits UTF-8 *with BOM* — there is
-      // no `utf8NoBOM` option until PS 6+. A BOM-prefixed package.json
-      // breaks Node's JSON.parse, and BOMs in shell scripts / makefiles
-      // break various tools. We override these cmdlets with same-named
-      // functions that write BOM-less UTF-8 via [System.IO.File] APIs.
-      const overrides = [
-        'function Set-Content {',
-        '  [CmdletBinding()] param(',
-        '    [Parameter(Mandatory=$true, Position=0)][string]$Path,',
-        '    [Parameter(Mandatory=$true, ValueFromPipeline=$true, Position=1)][object]$Value,',
-        '    [switch]$NoNewline, [switch]$Force, $Encoding, [switch]$PassThru',
-        '  )',
-        '  begin { $accum = New-Object System.Collections.Generic.List[string] }',
-        '  process { if ($null -ne $Value) { foreach ($v in @($Value)) { $accum.Add([string]$v) } } }',
-        '  end {',
-        '    $text = $accum -join "`n"',
-        '    if (-not $NoNewline -and $accum.Count -gt 0) { $text += "`n" }',
-        '    $abs = if ([System.IO.Path]::IsPathRooted($Path)) { $Path } else { Join-Path (Get-Location -PSProvider FileSystem).ProviderPath $Path }',
-        '    $parent = Split-Path $abs -Parent',
-        '    if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction SilentlyContinue | Out-Null }',
-        '    [System.IO.File]::WriteAllText($abs, $text, [System.Text.UTF8Encoding]::new($false))',
-        '  }',
-        '}',
-        'function Out-File {',
-        '  [CmdletBinding()] param(',
-        '    [Parameter(Mandatory=$true, Position=0)][string]$FilePath,',
-        '    [Parameter(Mandatory=$true, ValueFromPipeline=$true)][object]$InputObject,',
-        '    [switch]$Append, [switch]$NoNewline, [switch]$Force, $Encoding, [int]$Width',
-        '  )',
-        '  begin { $accum = New-Object System.Collections.Generic.List[string] }',
-        '  process { if ($null -ne $InputObject) { foreach ($v in @($InputObject)) { $accum.Add([string]$v) } } }',
-        '  end {',
-        '    $text = $accum -join "`n"',
-        '    if (-not $NoNewline -and $accum.Count -gt 0) { $text += "`n" }',
-        '    $abs = if ([System.IO.Path]::IsPathRooted($FilePath)) { $FilePath } else { Join-Path (Get-Location -PSProvider FileSystem).ProviderPath $FilePath }',
-        '    $parent = Split-Path $abs -Parent',
-        '    if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction SilentlyContinue | Out-Null }',
-        '    $enc = [System.Text.UTF8Encoding]::new($false)',
-        '    if ($Append) { [System.IO.File]::AppendAllText($abs, $text, $enc) } else { [System.IO.File]::WriteAllText($abs, $text, $enc) }',
-        '  }',
-        '}',
-        'function Add-Content {',
-        '  [CmdletBinding()] param(',
-        '    [Parameter(Mandatory=$true, Position=0)][string]$Path,',
-        '    [Parameter(Mandatory=$true, ValueFromPipeline=$true, Position=1)][object]$Value,',
-        '    [switch]$NoNewline, [switch]$Force, $Encoding',
-        '  )',
-        '  begin { $accum = New-Object System.Collections.Generic.List[string] }',
-        '  process { if ($null -ne $Value) { foreach ($v in @($Value)) { $accum.Add([string]$v) } } }',
-        '  end {',
-        '    $text = $accum -join "`n"',
-        '    if (-not $NoNewline -and $accum.Count -gt 0) { $text += "`n" }',
-        '    $abs = if ([System.IO.Path]::IsPathRooted($Path)) { $Path } else { Join-Path (Get-Location -PSProvider FileSystem).ProviderPath $Path }',
-        '    $parent = Split-Path $abs -Parent',
-        '    if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction SilentlyContinue | Out-Null }',
-        '    [System.IO.File]::AppendAllText($abs, $text, [System.Text.UTF8Encoding]::new($false))',
-        '  }',
-        '}',
-      ].join('\n');
       return [
-        '$wtsOrigOutputCP = [Console]::OutputEncoding',
-        'try {',
-        '$OutputEncoding = [System.Text.Encoding]::UTF8',
-        '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+        getPowerShellPrelude(),
         '$ErrorActionPreference = "Continue"',
-        overrides,
         command,
         // ProviderPath always returns the real OS filesystem path, even when
         // Set-Location has been driven through a pipeline (e.g.
@@ -190,9 +117,7 @@ export class StepExecutor {
         // like 'Microsoft.PowerShell.Core\FileSystem::E:\foo'. Spawning a child
         // with PSPath as cwd would ENOENT.
         `[System.IO.File]::WriteAllText('${sentinelLit}', $PWD.ProviderPath)`,
-        '} finally {',
-        '[Console]::OutputEncoding = $wtsOrigOutputCP',
-        '}',
+        getPowerShellEpilogue(),
       ].join('\n');
     }
 
@@ -238,4 +163,105 @@ export class StepExecutor {
     };
     return unixShellMap[this.shell] || '/bin/sh';
   }
+}
+
+/** PowerShell prelude that the in-session executor and the saved-script
+ *  generator both inject before user steps.
+ *
+ *  Why try/finally with codepage restore:
+ *  [Console]::OutputEncoding's setter calls Win32 SetConsoleOutputCP, which
+ *  mutates the codepage of the console ATTACHED to this process — the parent
+ *  PowerShell shares that console (spawn doesn't detach by default). Without
+ *  restoring on exit, the parent's PSReadLine keeps rendering future input
+ *  and history under the OLD codepage (GBK on Chinese Windows), so any
+ *  Chinese chars typed/recalled afterwards show up as mojibake.
+ *
+ *  Why the Set-Content / Out-File / Add-Content overrides:
+ *  PS 5.1's `-Encoding utf8` always emits UTF-8 *with BOM* — there is no
+ *  `utf8NoBOM` option until PS 6+. A BOM-prefixed package.json breaks Node's
+ *  JSON.parse, and BOMs in shell scripts / makefiles break various tools.
+ *  More importantly, when no `-Encoding` is passed at all, PS 5.1 defaults
+ *  to the system ANSI codepage (GBK on Chinese Windows) — Chinese / emoji
+ *  characters in heredocs get re-encoded as GBK bytes, then a browser
+ *  reading the file as `<meta charset="UTF-8">` sees mojibake. Override
+ *  these cmdlets with same-named functions that write BOM-less UTF-8 via
+ *  [System.IO.File] APIs.
+ *
+ *  Pair with getPowerShellEpilogue() to close the try/finally and restore
+ *  the original console encoding. $ErrorActionPreference is intentionally
+ *  NOT set here — caller decides Stop (saved scripts) vs Continue (executor
+ *  in-step retries). */
+export function getPowerShellPrelude(): string {
+  const overrides = [
+    'function Set-Content {',
+    '  [CmdletBinding()] param(',
+    '    [Parameter(Mandatory=$true, Position=0)][string]$Path,',
+    '    [Parameter(Mandatory=$true, ValueFromPipeline=$true, Position=1)][object]$Value,',
+    '    [switch]$NoNewline, [switch]$Force, $Encoding, [switch]$PassThru',
+    '  )',
+    '  begin { $accum = New-Object System.Collections.Generic.List[string] }',
+    '  process { if ($null -ne $Value) { foreach ($v in @($Value)) { $accum.Add([string]$v) } } }',
+    '  end {',
+    '    $text = $accum -join "`n"',
+    '    if (-not $NoNewline -and $accum.Count -gt 0) { $text += "`n" }',
+    '    $abs = if ([System.IO.Path]::IsPathRooted($Path)) { $Path } else { Join-Path (Get-Location -PSProvider FileSystem).ProviderPath $Path }',
+    '    $parent = Split-Path $abs -Parent',
+    '    if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction SilentlyContinue | Out-Null }',
+    '    [System.IO.File]::WriteAllText($abs, $text, [System.Text.UTF8Encoding]::new($false))',
+    '  }',
+    '}',
+    'function Out-File {',
+    '  [CmdletBinding()] param(',
+    '    [Parameter(Mandatory=$true, Position=0)][string]$FilePath,',
+    '    [Parameter(Mandatory=$true, ValueFromPipeline=$true)][object]$InputObject,',
+    '    [switch]$Append, [switch]$NoNewline, [switch]$Force, $Encoding, [int]$Width',
+    '  )',
+    '  begin { $accum = New-Object System.Collections.Generic.List[string] }',
+    '  process { if ($null -ne $InputObject) { foreach ($v in @($InputObject)) { $accum.Add([string]$v) } } }',
+    '  end {',
+    '    $text = $accum -join "`n"',
+    '    if (-not $NoNewline -and $accum.Count -gt 0) { $text += "`n" }',
+    '    $abs = if ([System.IO.Path]::IsPathRooted($FilePath)) { $FilePath } else { Join-Path (Get-Location -PSProvider FileSystem).ProviderPath $FilePath }',
+    '    $parent = Split-Path $abs -Parent',
+    '    if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction SilentlyContinue | Out-Null }',
+    '    $enc = [System.Text.UTF8Encoding]::new($false)',
+    '    if ($Append) { [System.IO.File]::AppendAllText($abs, $text, $enc) } else { [System.IO.File]::WriteAllText($abs, $text, $enc) }',
+    '  }',
+    '}',
+    'function Add-Content {',
+    '  [CmdletBinding()] param(',
+    '    [Parameter(Mandatory=$true, Position=0)][string]$Path,',
+    '    [Parameter(Mandatory=$true, ValueFromPipeline=$true, Position=1)][object]$Value,',
+    '    [switch]$NoNewline, [switch]$Force, $Encoding',
+    '  )',
+    '  begin { $accum = New-Object System.Collections.Generic.List[string] }',
+    '  process { if ($null -ne $Value) { foreach ($v in @($Value)) { $accum.Add([string]$v) } } }',
+    '  end {',
+    '    $text = $accum -join "`n"',
+    '    if (-not $NoNewline -and $accum.Count -gt 0) { $text += "`n" }',
+    '    $abs = if ([System.IO.Path]::IsPathRooted($Path)) { $Path } else { Join-Path (Get-Location -PSProvider FileSystem).ProviderPath $Path }',
+    '    $parent = Split-Path $abs -Parent',
+    '    if ($parent -and -not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction SilentlyContinue | Out-Null }',
+    '    [System.IO.File]::AppendAllText($abs, $text, [System.Text.UTF8Encoding]::new($false))',
+    '  }',
+    '}',
+  ].join('\n');
+  return [
+    '$wtsOrigOutputCP = [Console]::OutputEncoding',
+    'try {',
+    '$OutputEncoding = [System.Text.Encoding]::UTF8',
+    '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+    overrides,
+  ].join('\n');
+}
+
+/** Closes the try/finally opened by getPowerShellPrelude(); restores the
+ *  parent's console codepage so PSReadLine doesn't render later input as
+ *  mojibake. */
+export function getPowerShellEpilogue(): string {
+  return [
+    '} finally {',
+    '[Console]::OutputEncoding = $wtsOrigOutputCP',
+    '}',
+  ].join('\n');
 }
