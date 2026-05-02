@@ -155,7 +155,13 @@ Rules:
   [SECTION] L<a-b>
   [EXPLAIN] <explanation, may span multiple lines>
   ...where a and b are the 1-based line numbers shown in the file (inclusive; a single-line section uses L<a-a>). The explanation may span multiple lines, but must NOT contain another [SECTION] or [EXPLAIN] tag.
-- After all sections, end with a single line: [SUMMARY] <one-sentence overall purpose>
+- After all sections (and BEFORE [SUMMARY]), if AND ONLY IF you spot a CLEAR BUG, emit one or more lines:
+  [BUG] L<a>: <one-sentence description in ${lang}>
+  or for a multi-line range: [BUG] L<a-b>: <description>
+  ONLY count these as bugs: typo in a command/identifier name, logic inversion, missing check that will definitely crash/error, quoting bug that breaks on whitespace inputs, off-by-one, unreachable code, undefined variable, obvious incorrect API usage.
+  NEVER emit [BUG] for: style preferences (formatting, naming, list-comp vs for-loop), optimization opportunities ("could be cached", "could be parallel"), "consider adding type hints / comments / error handling", defensive suggestions when existing code works correctly, anything that is a matter of taste.
+  If unsure, OMIT. Most files have ZERO [BUG] lines — that is the expected case. Silence is strictly preferred over over-eager linting.
+- After [BUG] lines (or directly after the last section if there are none), end with a single line: [SUMMARY] <one-sentence overall purpose>
 - Do not wrap output in markdown fences. Do not echo the original code lines back.
 
 File (filename: ${filename}):

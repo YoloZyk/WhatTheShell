@@ -287,6 +287,7 @@ async function runFileExplain(
       result.summary,
       finalRisk,
       finalWarning,
+      result.issues,
     );
 
     // 历史记录：input 用 <file:basename> 标识，summary 留作快速回顾

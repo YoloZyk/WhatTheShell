@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot, ScriptResult, FileExplainResult, FileSection } from '../types';
+import type { AIProvider, GenerateResult, ExplainResult, DetailLevel, ShellType, Language, RiskLevel, CommandSegment, ContextSnapshot, ScriptResult, FileExplainResult, FileSection, FileIssue } from '../types';
 import { buildGeneratePrompt, buildExplainPrompt, buildExplainFilePrompt, buildAskPrompt, buildScaffoldPrompt, buildScriptPrompt, buildClassifyPrompt } from './prompt';
 import type { ScaffoldContext } from './scaffoldContext';
 import { parseScriptResponse } from './script';
@@ -299,6 +299,7 @@ function parseExplainFileResponse(raw: string, content: string): FileExplainResu
   raw = stripReasoningTags(raw).replace(/\r\n/g, '\n').trim();
   const fileLines = content.split('\n');
   const sections: FileSection[] = [];
+  const issues: FileIssue[] = [];
   let summary = '';
   let risk: RiskLevel = 'safe';
   let warning: string | undefined;
@@ -318,6 +319,27 @@ function parseExplainFileResponse(raw: string, content: string): FileExplainResu
     summary = summaryMatch[1].trim();
     body = body.slice(0, summaryMatch.index).trim();
   }
+
+  // pull out [BUG] L<a>(-<b>)?: <msg> lines (line is optional for tolerance).
+  // Strip them from body so [SECTION] parsing isn't confused.
+  const bugLineRe = /^\[BUG\](?:\s+L(\d+)(?:-(\d+))?)?\s*:\s*(.+)$/;
+  const cleanedLines: string[] = [];
+  for (const line of body.split('\n')) {
+    const m = line.match(bugLineRe);
+    if (m) {
+      const msg = m[3].trim();
+      if (m[1]) {
+        const a = parseInt(m[1], 10);
+        const b = m[2] ? parseInt(m[2], 10) : a;
+        issues.push({ range: [a, b], message: msg });
+      } else {
+        issues.push({ message: msg });
+      }
+    } else {
+      cleanedLines.push(line);
+    }
+  }
+  body = cleanedLines.join('\n').trim();
 
   // section markers: [SECTION] L<a>(-<b>)?
   const sectionRegex = /^\[SECTION\]\s+L(\d+)(?:-(\d+))?\s*$/gm;
@@ -361,5 +383,5 @@ function parseExplainFileResponse(raw: string, content: string): FileExplainResu
     summary = sections[sections.length - 1]?.explanation || '';
   }
 
-  return { sections, summary, risk, warning };
+  return { sections, summary, issues, risk, warning };
 }

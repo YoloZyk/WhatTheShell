@@ -1,4 +1,4 @@
-import type { RiskLevel, CommandSegment, FileSection } from '../types';
+import type { RiskLevel, CommandSegment, FileSection, FileIssue } from '../types';
 import chalk from 'chalk';
 import { success as uiSuccess, error as uiError, warn as uiWarn } from './ui';
 
@@ -145,6 +145,7 @@ export async function displayFileExplanation(
   summary: string,
   risk: RiskLevel,
   warning?: string,
+  issues: FileIssue[] = [],
 ): Promise<void> {
   console.log();
 
@@ -210,6 +211,20 @@ export async function displayFileExplanation(
       });
     }
   });
+
+  if (issues.length > 0) {
+    console.log(`${borderFn('│')}`);
+    console.log(`${borderFn('│')}  ${chalk.yellow.bold('[!] Likely bugs:')}`);
+    for (const issue of issues) {
+      const loc = issue.range
+        ? issue.range[0] === issue.range[1]
+          ? `L${issue.range[0]}`
+          : `L${issue.range[0]}-${issue.range[1]}`
+        : '';
+      const prefix = loc ? `${chalk.yellow(loc)}  ` : '';
+      console.log(`${borderFn('│')}    ${prefix}${chalk.white(issue.message)}`);
+    }
+  }
 
   if (summary) {
     console.log(`${borderFn('│')}`);

@@ -106,10 +106,20 @@ export interface FileSection {
   explanation: string;
 }
 
+/** AI 在文件解释里标出的"明显 bug"（非 style / 非优化建议） (v0.4) */
+export interface FileIssue {
+  /** 起止行号；单行用 [a, a]；AI 漏标行号则 undefined */
+  range?: [number, number];
+  /** 一句话描述（已 trim） */
+  message: string;
+}
+
 /** AI 文件解释结果 (v0.4) */
 export interface FileExplainResult {
   sections: FileSection[];
   summary: string;
+  /** AI 标出的明显 bug；多数文件应为空数组 */
+  issues: FileIssue[];
   risk: RiskLevel;
   warning?: string;
 }
