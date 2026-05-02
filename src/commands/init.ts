@@ -292,7 +292,7 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
       const newContent = content.replace(blockPattern, '') + block;
       fs.writeFileSync(rc, newContent);
       console.log(`  ${chalk.green('✓')} ${alreadyInstalled ? 'Updated' : 'Installed'} in ${rc}`);
-      console.log(`    ${chalk.gray('Run: source')} ${rc}`);
+      console.log(`    ${chalk.yellow('⚡')} ${chalk.yellow('Activate in this shell:')} ${chalk.cyan.bold(`source ${rc}`)}`);
     } catch (e: any) {
       console.log(`  ${chalk.red('×')} Failed: ${e.message}`);
       console.log(`    ${chalk.gray('Manual install:')} eval "$(wts shell-init ${shell})"`);
@@ -307,7 +307,8 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(target, renderInitScript('fish'));
       console.log(`  ${chalk.green('✓')} ${alreadyInstalled ? 'Updated' : 'Installed'} at ${target}`);
-      console.log(`    ${chalk.gray('Restart fish to activate')}`);
+      console.log(`    ${chalk.yellow('⚡')} ${chalk.yellow('Activate in this shell:')} ${chalk.cyan.bold(`source ${target}`)}`);
+      console.log(`       ${chalk.gray('(or open a new fish session)')}`);
     } catch (e: any) {
       console.log(`  ${chalk.red('×')} Failed: ${e.message}`);
       console.log(`    ${chalk.gray('Manual install:')} wts shell-init fish > ~/.config/fish/conf.d/wts.fish`);
@@ -335,7 +336,7 @@ async function maybeInstallShellIntegration(shell: ShellType, prompts: any): Pro
       const newContent = content.replace(blockPattern, '') + '\n' + renderInitScript('powershell') + '\n';
       fs.writeFileSync(profilePath, newContent);
       console.log(`  ${chalk.green('✓')} ${alreadyInstalled ? 'Updated' : 'Installed'} in ${profilePath}`);
-      console.log(`    ${chalk.gray('Run:')} . $PROFILE`);
+      console.log(`    ${chalk.yellow('⚡')} ${chalk.yellow('Activate in this shell:')} ${chalk.cyan.bold('. $PROFILE')}`);
     } catch (e: any) {
       console.log(`  ${chalk.red('×')} Failed: ${e.message}`);
       console.log(`    ${chalk.gray('Manual install:')} wts shell-init powershell | Out-String | Add-Content -Path $PROFILE`);
