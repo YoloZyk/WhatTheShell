@@ -393,12 +393,27 @@ async function runMultiStepMode(
     }
     console.log();
 
+    // Record to history at generation time (matches single-command generate
+    // semantics: log the AI output regardless of whether the user runs it).
+    addHistory({
+      type: 'script',
+      input: description,
+      output: formatScriptForHistory(result.steps),
+    });
+
     await interactiveScriptMenu(client, description, shell, config, result.steps, result.risk);
 
   } catch (err: any) {
     spinner.stop();
     await displayError(err.message || 'Failed to generate script');
   }
+}
+
+/** Render steps as `Step N: <cmd>` lines for the history log — matches the
+ *  format the improveScript prompt already uses, so users browsing history
+ *  see a stable shape across single- and multi-step entries. */
+function formatScriptForHistory(steps: Step[]): string {
+  return steps.map(s => `Step ${s.index}: ${s.command}`).join('\n');
 }
 
 /** Display script steps */
@@ -1096,6 +1111,13 @@ Step 2: <command>
 
     if (result.steps.length > 0) {
       displaySteps(result.steps);
+      // Record the improved version to history as a separate entry. Tag the
+      // input so users can tell it apart from the original generation.
+      addHistory({
+        type: 'script',
+        input: `${originalDescription} (improved: ${feedback})`,
+        output: formatScriptForHistory(result.steps),
+      });
       // Update the steps and show menu again
       await interactiveScriptMenu(client, originalDescription, shell, config, result.steps, result.risk);
     } else {
