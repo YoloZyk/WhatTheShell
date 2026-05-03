@@ -13,7 +13,7 @@ export async function checkForUpdate(): Promise<void> {
   try {
     const notifier = updateNotifier({
       pkg,
-      updateCheckInterval: 1000 * 60 * 60, // 1 hour for testing; default is once per day
+      updateCheckInterval: 1000 * 60 * 60 * 24, // once per day
     });
 
     if (notifier.update) {
@@ -36,8 +36,15 @@ export async function checkForUpdate(): Promise<void> {
 /**
  * Notify update availability at startup.
  * Call this early in main.ts before program.parse().
+ *
+ * Skipped in `--inline` mode (the Ctrl+G shell-integration code path): inline
+ * stdout is consumed by the host shell's readline as the user's command line,
+ * and any extra "A new version is available" lines would be spliced into the
+ * partially-typed command. The user has plenty of other entry points (any
+ * non-inline `wts <subcmd>` invocation) where the notice can show safely.
  */
 export function notifyUpdate(): void {
+  if (process.argv.includes('--inline')) return;
   // Fire and forget - don't await
   checkForUpdate();
 }
