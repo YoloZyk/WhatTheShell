@@ -24,6 +24,9 @@ export async function scaffoldCommand(intent: string, options: ScaffoldOptions):
     : undefined;
 
   console.log();
+  console.log(`  ${chalk.yellow('⚠')}  ${chalk.yellow('wts scaffold')} ${chalk.gray('is deprecated and will be removed in a future release.')}`);
+  console.log(`     ${chalk.gray('Use')} ${chalk.cyan('wts g --script "<intent>"')} ${chalk.gray('instead — same workflow, with cwd tracking, step-by-step, fix-on-failure.')}`);
+  console.log();
   console.log(`${chalk.cyan('┌─')} ${chalk.hex('#ff8c00')('[scaffold]')} ${chalk.gray('─'.repeat(46))}`);
   console.log(`${chalk.cyan('│')}  ${chalk.gray('>')} ${chalk.white(intent)}`);
   console.log(`${chalk.cyan('│')}  ${chalk.gray('shell:')} ${chalk.cyan(shell)}`);

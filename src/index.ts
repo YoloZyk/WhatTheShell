@@ -63,7 +63,7 @@ function renderHelp(): void {
     { name: 'generate|g', desc: 'Generate a shell command from natural language' },
     { name: 'explain|e', desc: 'Explain a shell command or script file' },
     { name: 'ask|a', desc: 'Free-form Q&A about shells and terminals' },
-    { name: 'scaffold', desc: 'Draft a setup script for project files (review and adapt before running)' },
+    { name: 'scaffold', desc: 'Draft a setup script for project files (deprecated, use `wts g --script`)' },
     { name: 'init', desc: 'Interactive setup wizard' },
     { name: 'shell-init', desc: 'Emit shell integration script' },
     { name: 'config', desc: 'Manage configuration' },
@@ -225,6 +225,12 @@ function renderScaffoldHelp(): void {
   console.log();
   console.log(`${chalk.cyan('┌─')} ${chalk.bold('Scaffold')} ${chalk.gray('─'.repeat(50))}`);
   console.log(`${chalk.cyan('│')}  Draft a setup script for project files — review and adapt before running`);
+  console.log(`${chalk.cyan('│')}`);
+
+  console.log(`${chalk.cyan('├─')} ${chalk.yellow.bold('Deprecated')}`);
+  console.log(`${chalk.cyan('│')}  ${chalk.yellow('⚠')} ${chalk.gray('This command will be removed in a future release.')}`);
+  console.log(`${chalk.cyan('│')}    ${chalk.gray('Use')} ${chalk.cyan('wts g --script "<intent>"')} ${chalk.gray('instead — same workflow, with cwd tracking,')}`);
+  console.log(`${chalk.cyan('│')}    ${chalk.gray('step-by-step, and fix-on-failure.')}`);
   console.log(`${chalk.cyan('│')}`);
 
   console.log(`${chalk.cyan('├─')} ${chalk.bold('Usage')}`);
@@ -429,7 +435,7 @@ program
 program
   .command('scaffold <intent>')
   .alias('f')
-  .description('Generate a project file or code structure (review and adapt before running)')
+  .description('Generate a project file or code structure (deprecated, use `wts g --script`)')
   .option('-s, --shell <shell>', 'Target shell syntax (bash/zsh/powershell/fish)')
   .action(async (intent: string, options) => {
     const { scaffoldCommand } = await import('./commands/scaffold');
