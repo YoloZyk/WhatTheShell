@@ -13,7 +13,7 @@
   <img src="docs/demo-ctrlg.gif" width="400" />
 </p>
 
-**Current version:** `v0.4.0`. See the [Changelog](#changelog).
+**Current version:** `v0.4.1`. See the [Changelog](#changelog).
 
 ---
 
@@ -381,6 +381,13 @@ Type to filter, arrow keys to navigate, Enter to replay a generate entry.
 ---
 
 ## Changelog
+
+### v0.4.1 — 2026-05-03
+
+Patch release. Fixes the binary release pipeline; no behaviour changes for users running from npm.
+
+- **Binary fix** — `wts-linux` / `wts-macos` / `wts-win.exe` from the v0.4.0 release crashed on startup with `Cannot find module '#ansi-styles'`. Cause: `chalk@5`'s subpath imports don't resolve inside pkg's virtual filesystem. Patched at build time; v0.4.1 binaries run correctly.
+- **Release notes** — Workflow now pulls the changelog body from this README's matching version section instead of GitHub's auto-generated commit list.
 
 ### v0.4.0 — 2026-05-03
 
