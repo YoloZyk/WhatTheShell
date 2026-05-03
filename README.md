@@ -13,7 +13,7 @@
   <img src="docs/demo-ctrlg.gif" width="400" />
 </p>
 
-**Current version:** `v0.3.0`. See the [Changelog](#changelog).
+**Current version:** `v0.4.0`. See the [Changelog](#changelog).
 
 ---
 
@@ -36,6 +36,7 @@
 - [Safety & privacy](#safety--privacy)
 - [History](#history)
 - [Changelog](#changelog)
+- [Feedback](#feedback)
 - [License](#license)
 
 ---
@@ -140,7 +141,7 @@ See [Shell integration](#shell-integration) for installation details.
 
 ### `wts generate`
 
-Generate a command from scratch.
+Generate a command from scratch. Simple intents produce a single line; complex ones ("set up a blog backend") produce a multi-step script you can run all at once or step by step. Failed steps get a fix-and-retry option. Pass `--script` to force multi-step mode.
 
 ```bash
 $ wts generate "find all files over 100 MB, sorted by size"
@@ -150,55 +151,71 @@ find . -type f -size +100M -exec ls -lhS {} + | sort -k5 -h
   > [R]un  [C]opy  [Q]uit
 ```
 
+Generated scripts can be saved as runnable `.sh` / `.ps1` / `.fish` files.
+
 | Option | Description |
 |--------|-------------|
 | `-r`, `--run` | Run the command directly (dangerous patterns still require confirmation). |
 | `-c`, `--copy` | Copy to clipboard and exit the menu. |
 | `-s`, `--shell <bash\|zsh\|powershell\|fish>` | Target shell syntax. |
+| `--script` | Force multi-step mode regardless of classification. |
 | `--inline` | Emit the bare command to stdout with no UI — used by the shell integration, available to scripts too. |
 
 Alias: `wts g`.
 
 ### `wts explain`
 
-Break down a command you don't understand.
+Break down a command — or a whole file. Pass a path and `wts e` reads it and walks through it section by section.
 
 ```bash
-$ wts explain "awk '{sum += \$5} END {print sum}' access.log"
-
-  awk                 # text-processing tool
-  '{sum += $5}'       # add column 5 of each line to `sum`
-  END {print sum}     # print sum after all lines processed
-  access.log          # input file
-
-  Summary: totals column 5 of access.log (typically response size) across all rows.
+$ wts explain "awk '{sum += \$5} END {print sum}' access.log"   # one command
+$ wts explain ./deploy.sh                                          # shell script
+$ wts explain index.js                                              # source code
+$ wts explain Dockerfile                                            # config / well-known basename
 ```
+
+Covers shell scripts, source code, config / markup files, docs, and well-known basenames (Dockerfile / Makefile / Gemfile / etc.).
+
+Beyond explaining, it flags `[BUG]` lines — concrete correctness issues like typos, logic inversions, and **hardcoded oracle values that contradict the code** (e.g. `assert sorted([3,1,2]) == [1,3,2]`). Style nitpicks are suppressed; most files emit zero `[BUG]` lines.
 
 | Option | Description |
 |--------|-------------|
 | `-b`, `--brief` | One-sentence summary. |
 | `-d`, `--detail` | Full breakdown including side effects and gotchas. |
+| `--file <path>` | Force file mode (when path detection is ambiguous). |
 
 Alias: `wts e`.
 
 ### `wts ask`
 
-A free-form Q&A channel for conceptual or comparison questions where you don't need a specific command.
+Free-form Q&A with file attachments. Reference files inline with `@path` and `wts` ships their content with your question.
 
 ```bash
 wts ask "when should I use xargs vs. -exec in find?"
+wts ask "看 @src/auth.ts 安全吗"
+wts ask "@src/old.ts 和 @src/new.ts 的区别"
+wts ask "@src/auth/ 这个模块的设计"          # directory shallow-expand
+wts ask                                        # no question → interactive picker
 ```
+
+`.env*` / `.pem` / `.key` files are blocked from attachments.
+
+Run `wts a` with no question for an interactive picker. When cwd isn't a project root, it detects nearby projects (via `.git`, `package.json`, `pyproject.toml`, etc.) and offers to scope into one — or pick "Other folder..." for projects without standard markers. Multi-select with Space; type to filter when there are many files.
+
+Answers render Markdown (bold, code blocks, lists).
 
 Alias: `wts a`.
 
-### `wts scaffold`
+### `wts scaffold` 🪦 *deprecated*
 
-Generate project files, code structures, or training frameworks. Deep awareness of your project's ecosystem (Node.js, Python, Go, Rust, etc.).
+> **This command is deprecated and will be removed in a future release.**
+> Use `wts g --script "<intent>"` instead — same workflow, with cwd tracking, step-by-step execution, fix-on-failure, and PowerShell UTF-8 wrappers (none of which scaffold has).
+
+Existing invocations continue to work; a deprecation banner prints at the top.
 
 ```bash
 wts f "a PyTorch training script for image classification"
 wts scaffold "Dockerfile for this Node.js project"
-wts scaffold "add .gitignore for node and vscode"
 ```
 
 The output is shown for review; you save, copy, or adapt before running anything.
@@ -365,6 +382,16 @@ Type to filter, arrow keys to navigate, Enter to replay a generate entry.
 
 ## Changelog
 
+### v0.4.0 — 2026-05-03
+
+Incremental upgrades to the four core subcommands. **No new commands** — `g` / `e` / `a` got materially smarter, `scaffold` is deprecated in favor of `g --script`.
+
+- **`wts g`** — multi-step script generation with guided execution. Complex intents now produce a step-by-step script instead of a single command.
+- **`wts e`** — explain whole files (source code, config, docs, etc.), not just shell commands. Also flags `[BUG]` lines for clear correctness issues.
+- **`wts a`** — file-aware Q&A. Reference files with `@path` inline, or run `wts a` alone to pick interactively.
+- **`wts scaffold`** 🪦 — deprecated; will be removed in a future release. Use `wts g --script` instead.
+- **`Ctrl+G` fix** — no longer gets corrupted by the npm update notifier when an upgrade is pending.
+
 ### v0.3.0 — 2026-04-25
 
 Major UI modernization and new features.
@@ -416,6 +443,12 @@ First usable release.
 - `explain` with `--brief` and `--detail` modes.
 - Local history at `~/.wts/history.json` and a `wts history` command.
 - TOML config at `~/.wts/config.toml`; `config list` masks the API key.
+
+---
+
+## Feedback
+
+Bugs, sharp edges, or suggestions are all welcome. Open a [GitHub issue](https://github.com/YoloZyk/WhatTheShell/issues), or email <ykzhang@mail.ustc.edu.cn>.
 
 ---
 
