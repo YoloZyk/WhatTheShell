@@ -7,6 +7,14 @@ on:
   release:
     types: [published]
 
+# softprops/action-gh-release@v2 needs contents:write to create the
+# GitHub Release for the pushed tag. Default GITHUB_TOKEN is read-only
+# since GitHub's 2023 permission tightening; declare here so the
+# workflow doesn't depend on the repo's "Workflow permissions" setting
+# (which defaults to read-only on fresh repos).
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
