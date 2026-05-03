@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  release:
-    types: [published]
 
 # softprops/action-gh-release@v2 needs contents:write to create the
 # GitHub Release for the pushed tag. Default GITHUB_TOKEN is read-only
@@ -16,64 +14,13 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: node22-win-x64
-            artifact: wts-win.exe
-          - os: macos-latest
-            target: node22-macos-x64
-            artifact: wts-macos
-          - os: ubuntu-latest
-            target: node22-linux-x64
-            artifact: wts-linux
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build TypeScript
-        run: npm run build
-
-      - name: Install pkg
-        run: npm install -g @yao-pkg/pkg
-
-      - name: Build binary
-        run: pkg dist/index.js --target ${{ matrix.target }} --output ${{ matrix.artifact }}
-
-      - name: Upload binary as workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
-          if-no-files-found: error
-          retention-days: 1
-
   release:
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all binaries
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
       # Extract the README ## Changelog section for ${GITHUB_REF_NAME}
-      # (e.g. v0.4.0). Stops at the next "### v" heading. If no matching
+      # (e.g. v0.4.2). Stops at the next "### v" heading. If no matching
       # section exists, release body is left empty (with a warning).
       - name: Extract changelog section for this tag
         run: |
@@ -90,7 +37,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
           body_path: release_body.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

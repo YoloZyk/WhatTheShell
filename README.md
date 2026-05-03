@@ -54,38 +54,11 @@
 
 ## Installation
 
-### npm (requires Node.js ≥ 18)
+Requires Node.js ≥ 18.
 
 ```bash
 npm install -g whattheshell
 wts init
-```
-
-### Download binary (no Node.js required)
-
-Download the executable for your platform from [GitHub Releases](https://github.com/YoloZyk/WhatTheShell/releases/latest):
-
-| Platform | Download |
-|----------|----------|
-| Windows | `wts-win.exe` |
-| macOS | `wts-macos` |
-| Linux | `wts-linux` |
-
-After download, make it executable (Linux/macOS):
-
-```bash
-chmod +x wts-linux   # or wts-macos
-./wts-linux          # run directly, or move to PATH
-```
-
-For convenience, move it to your PATH:
-
-```bash
-# Linux/macOS
-sudo mv wts-linux /usr/local/bin/wts
-
-# Windows: add the folder to your PATH, then run:
-wts.exe init
 ```
 
 `wts init` is a one-minute wizard that walks you through provider choice, API-key setup (with a live connectivity test), and optional shell integration. If you skip it, the wizard auto-launches the first time you run `generate` / `explain` / `ask` without a configured key.
@@ -384,10 +357,10 @@ Type to filter, arrow keys to navigate, Enter to replay a generate entry.
 
 ### v0.4.1 — 2026-05-03
 
-Patch release. Fixes the binary release pipeline; no behaviour changes for users running from npm.
+Maintenance release. **No code changes** — `wts` behaviour for npm users is identical to v0.4.0.
 
-- **Binary fix** — `wts-linux` / `wts-macos` / `wts-win.exe` from the v0.4.0 release crashed on startup with `Cannot find module '#ansi-styles'`. Cause: `chalk@5`'s subpath imports don't resolve inside pkg's virtual filesystem. Patched at build time; v0.4.1 binaries run correctly.
-- **Release notes** — Workflow now pulls the changelog body from this README's matching version section instead of GitHub's auto-generated commit list.
+- **Prebuilt binaries discontinued** — `wts-linux` / `wts-macos` / `wts-win.exe` on the v0.4.0 / v0.4.1 release pages crashed on startup. Several ESM-only dependencies (`chalk@5`, `update-notifier`, `ora`, etc.) don't bundle cleanly under [pkg](https://github.com/yao-pkg/pkg). Rather than keep patching them one by one, we're dropping the binary distribution. Install via `npm install -g whattheshell` (requires Node.js ≥ 18) — see [Installation](#installation).
+- **Release pipeline simplified** — Tag pushes now only create a GitHub Release whose body is the matching README changelog section. No binary build, no binary upload.
 
 ### v0.4.0 — 2026-05-03
 
